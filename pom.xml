@@ -1,20 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <artifactId>TLS-Attacker-Template</artifactId>
-    <groupId>de.rub.nds.tlstemplate</groupId>
-    <version>1.2</version>
+    <artifactId>TimingDockerEvaluator</artifactId>
+    <groupId>de.rub.nds.timingdockerevaluator</groupId>
+    <version>1.0</version>
     <packaging>jar</packaging>
     <dependencies>
         <dependency>
             <groupId>de.rub.nds.tlsattacker</groupId>
             <artifactId>TLS-Core</artifactId>
-            <version>3.3.1</version>
+            <version>3.9.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>de.rub.nds.tlsattacker</groupId>
-            <artifactId>Attacks</artifactId>
-            <version>3.3.1</version>
+            <groupId>de.rub.nds.tlsdockerlib</groupId>
+            <artifactId>TLS-Docker-Library</artifactId>
+            <version>2.0.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.docker-java</groupId>
+            <artifactId>docker-java-core</artifactId>
+            <version>3.2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.docker-java</groupId>
+            <artifactId>docker-java-transport-httpclient5</artifactId>
+            <version>3.2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>de.rub.nds.tlsscanner</groupId>
+            <artifactId>TLS-Server-Scanner</artifactId>
+            <version>4.3.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>de.rub.nds.tlsscanner</groupId>
+            <artifactId>TLS-Scanner-Core</artifactId>
+            <version>4.3.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>de.rub.nds.tlsbreaker</groupId>
+            <artifactId>Lucky13</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -22,9 +47,30 @@
             <version>4.12</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>2.17.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.17.2</version>
+        </dependency>
+        <dependency> 
+            <groupId>org.reflections</groupId> 
+            <artifactId>reflections</artifactId> 
+            <version>0.10.2</version> 
+        </dependency>
+        <dependency>
+            <groupId>com.beust</groupId>
+            <artifactId>jcommander</artifactId>
+            <version>1.82</version>
+        </dependency>
+
     </dependencies>
     <build>
-        <finalName>TLS-Attacker-Template</finalName>              
+        <finalName>TLS-Timing-Docker-Evaluator</finalName>              
         <plugins>
             <plugin> 
                 <artifactId>maven-dependency-plugin</artifactId> 
@@ -72,7 +118,7 @@
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>de.rub.nds.tls.attacker.template.ExampleClass</mainClass>
+                            <mainClass>de.rub.nds.timingdockerevaluator.execution.Main</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -110,7 +156,7 @@
     </build>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.7</maven.compiler.source>
-        <maven.compiler.target>1.7</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
     </properties>
 </project>
