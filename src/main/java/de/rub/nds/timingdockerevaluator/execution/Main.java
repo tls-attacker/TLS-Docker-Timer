@@ -12,6 +12,7 @@ import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.constants.TlsImageLabels;
 import de.rub.nds.tls.subject.docker.DockerClientManager;
 import de.rub.nds.tls.subject.docker.DockerTlsManagerFactory;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
@@ -35,7 +36,7 @@ public class Main {
         JCommander commander = new JCommander(evaluationConfig);
         try {
             commander.parse(args);
-            if(evaluationConfig.isHelp()) {
+            if (evaluationConfig.isHelp()) {
                 commander.usage();
                 return;
             }
@@ -48,14 +49,14 @@ public class Main {
         LOGGER.info("Measurements per step set to {}", evaluationConfig.getMeasurementsPerStep());
         LOGGER.info("Maximum measurements per vector set to {}", evaluationConfig.getTotalMeasurements());
         LOGGER.info("Analyzing {} in parallel", evaluationConfig.getThreads());
-        
+
         ExecutorService executor;
-        if(evaluationConfig.isManagedTarget()) {
-           executor = prepareManagedExecutor(); 
+        if (evaluationConfig.isManagedTarget()) {
+            executor = prepareManagedExecutor();
         } else {
             executor = getRemoteExecutor();
         }
-        
+
         try {
             executor.shutdown();
             executor.awaitTermination(100, TimeUnit.DAYS);
@@ -64,12 +65,14 @@ public class Main {
             LOGGER.error(ex);
         }
     }
-    
+
     private static void checkCommandCombinations() {
-        if(!evaluationConfig.isManagedTarget() && (evaluationConfig.getSpecificLibrary() != null || evaluationConfig.getSpecificVersion() != null)) {
+        if (!evaluationConfig.isManagedTarget() && (evaluationConfig.getSpecificLibrary() != null || evaluationConfig.getSpecificVersion() != null)) {
             throw new ParameterException("Invalid combination of remote target and specific library/version. Filters can only be applied to managed targets!");
-        } else if(evaluationConfig.getMeasurementsPerStep() > evaluationConfig.getTotalMeasurements()) {
+        } else if (evaluationConfig.getMeasurementsPerStep() > evaluationConfig.getTotalMeasurements()) {
             throw new ParameterException("Measurements per step exceed total number of measurements.");
+        } else if (evaluationConfig.getBaseVersion() != null && evaluationConfig.getSpecificVersion() != null) {
+            throw new ParameterException("Both specific and base version(s) specified.");
         }
     }
 
@@ -77,8 +80,10 @@ public class Main {
         LOGGER.info("Evaluating remote target {}:{}", evaluationConfig.getSpecificIp(), evaluationConfig.getSpecificPort());
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(() -> {
-            EvaluationTask task = new EvaluationTask(evaluationConfig);
-            task.execute();
+            if (!evaluationConfig.isDryRun()) {
+                EvaluationTask task = new EvaluationTask(evaluationConfig);
+                task.execute();
+            }
         });
         return executor;
     }
@@ -87,22 +92,23 @@ public class Main {
         preExecutionCleanup();
         collectTargets();
         LOGGER.info("Found {} applicable server images", images.size());
-        LOGGER.info("Starting docker evaluation");
+        LOGGER.info("Libraries: {}", images.stream().map(image -> image.getLabels().get(TlsImageLabels.IMPLEMENTATION.getLabelName())).distinct().collect(Collectors.joining(",")));
+        LOGGER.info("Versions: {}", images.stream().map(image -> image.getLabels().get(TlsImageLabels.VERSION.getLabelName())).distinct().collect(Collectors.joining(",")));
         ExecutionWatcher.getReference().setTasks(images.size());
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(evaluationConfig.getThreads());
-        for (Image image : images) {
-            executor.execute(() -> {
-                EvaluationTask task = new EvaluationTask(image, evaluationConfig);
-                task.execute();
-            });
+        if (!evaluationConfig.isDryRun()) {
+            for (Image image : images) {
+                executor.execute(() -> {
+                    EvaluationTask task = new EvaluationTask(image, evaluationConfig);
+                    task.execute();
+                });
+            }
         }
         return executor;
     }
 
-    
-
     private static void checkRStatus() {
-        if(evaluationConfig.isSkipR()) {
+        if (evaluationConfig.isSkipR()) {
             LOGGER.info("R script is disabled. All vectors will be tested with maximum number of measurements.");
         } else if (!RScriptManager.rScriptGiven()) {
             LOGGER.error("Failed to find R script, must be provided in execution path");
@@ -111,15 +117,50 @@ public class Main {
     }
 
     private static void collectTargets() {
-        images = DockerTlsManagerFactory.getAllImages().parallelStream().filter(image -> {
-            TlsImplementationType implementation = TlsImplementationType.fromString(image.getLabels().get(TlsImageLabels.IMPLEMENTATION.getLabelName()));
-            String version = image.getLabels().get(TlsImageLabels.VERSION.getLabelName());
-            String role = image.getLabels().get(TlsImageLabels.CONNECTION_ROLE.getLabelName());
-            boolean matchesLibraryFilter = evaluationConfig.getSpecificLibrary() == null || implementation.name().toLowerCase().equals(evaluationConfig.getSpecificLibrary().toLowerCase());
-            boolean matchesSpecificVersion = evaluationConfig.getSpecificVersion() == null || version.toLowerCase().equals(evaluationConfig.getSpecificVersion().toLowerCase());
+        List<Image> allAvailableImages = DockerTlsManagerFactory.getAllImages();
+        images = allAvailableImages.parallelStream().filter(image -> imageSelection(image, null)).collect(Collectors.toList());
+        images.addAll(allAvailableImages.stream().filter(image -> imageSelection(image, images)).collect(Collectors.toList()));
+    }
 
-            return role.equals("server") && matchesLibraryFilter && matchesSpecificVersion;
-        }).collect(Collectors.toList());
+    private static boolean imageSelection(Image image, List<Image> presentImages) {
+        TlsImplementationType implementation = TlsImplementationType.fromString(image.getLabels().get(TlsImageLabels.IMPLEMENTATION.getLabelName()));
+        String version = image.getLabels().get(TlsImageLabels.VERSION.getLabelName());
+        String role = image.getLabels().get(TlsImageLabels.CONNECTION_ROLE.getLabelName());
+        // always prioritize local image with matching labels
+        if (!matchesLocalOverNexusPriority(image, presentImages, implementation, version)) {
+            return false;
+        } else {
+            return matchesImageFilters(implementation, version, role);
+        }
+    }
+
+    private static boolean matchesImageFilters(TlsImplementationType implementation, String version, String role) {
+        boolean matchesLibraryFilter = evaluationConfig.getSpecificLibrary() == null || Arrays.asList(evaluationConfig.getSpecificLibrary().split(",")).stream().anyMatch(implementation.name().toLowerCase()::equals);
+        boolean matchesVersionFilter = true;
+        if (evaluationConfig.getSpecificVersion() != null) {
+            matchesVersionFilter = Arrays.asList(evaluationConfig.getSpecificVersion().split(",")).stream().anyMatch(version.toLowerCase()::equals);
+        } else if (evaluationConfig.getBaseVersion() != null) {
+            matchesVersionFilter = Arrays.asList(evaluationConfig.getBaseVersion().split(",")).stream().anyMatch(version.toLowerCase()::contains);
+        }
+        return role.equals("server") && matchesLibraryFilter && matchesVersionFilter;
+    }
+
+    private static boolean matchesLocalOverNexusPriority(Image image, List<Image> presentImages, TlsImplementationType implementation, String version) {
+        boolean isFromNexus = Arrays.asList(image.getRepoTags()).stream().anyMatch(tag -> tag.contains("hydrogen.cloud.nds.rub.de"));
+        if ((presentImages == null && isFromNexus) || (presentImages != null && !isFromNexus)) {
+            //either add only from nexus or locally built
+            return false;
+        } else if (presentImages != null && isFromNexus) {
+            //extend list, but avoid duplicates
+            for (Image listedImage : presentImages) {
+                TlsImplementationType listedImplementation = TlsImplementationType.fromString(listedImage.getLabels().get(TlsImageLabels.IMPLEMENTATION.getLabelName()));
+                String listedVersion = listedImage.getLabels().get(TlsImageLabels.VERSION.getLabelName());
+                if (listedImplementation == implementation && listedVersion.equals(version)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private static void preExecutionCleanup() {

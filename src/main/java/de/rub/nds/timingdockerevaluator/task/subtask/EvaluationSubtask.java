@@ -1,17 +1,26 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
-import de.rub.nds.timingdockerevaluator.execution.Main;
+import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.constants.NamedGroup;
+import de.rub.nds.tlsattacker.core.constants.ProtocolMessageType;
 import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
 import de.rub.nds.tlsattacker.core.constants.RunningModeType;
 import de.rub.nds.tlsattacker.core.constants.SignatureAndHashAlgorithm;
+import de.rub.nds.tlsattacker.core.protocol.message.AlertMessage;
 import de.rub.nds.tlsattacker.core.state.State;
+import de.rub.nds.tlsattacker.core.workflow.WorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
+import de.rub.nds.tlsattacker.core.workflow.WorkflowTraceUtil;
+import de.rub.nds.tlsattacker.core.workflow.action.GenericReceiveAction;
+import de.rub.nds.tlsattacker.core.workflow.action.ReceiveAction;
+import de.rub.nds.tlsattacker.core.workflow.action.TlsAction;
 import de.rub.nds.tlsattacker.transport.TransportHandlerType;
+import de.rub.nds.tlsattacker.transport.socket.SocketState;
+import de.rub.nds.tlsattacker.transport.tcp.ClientTcpTransportHandler;
 import de.rub.nds.tlsattacker.transport.tcp.proxy.TimingProxyClientTcpTransportHandler;
 import de.rub.nds.tlsattacker.transport.tcp.timing.TimingClientTcpTransportHandler;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
@@ -31,10 +40,11 @@ public abstract class EvaluationSubtask {
     
     private final static Random notReallyRandom = new Random(System.currentTimeMillis());
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final boolean USE_TCP_PROXY = false;
+    private static final int MAX_FAILURES_IN_A_ROW = 20;
+    private static final int UNDETECTABLE_LIMIT = 300;
     
-    private Map<String, List<Long>> runningMeasurements = new HashMap<>();
-    private Map<String, List<Long>> finishedMeasurements = new HashMap<>();
+    private final Map<String, List<Long>> runningMeasurements = new HashMap<>();
+    private final Map<String, List<Long>> finishedMeasurements = new HashMap<>();
     protected int measurementsDone;
     protected int nextMaximum;
     private final String subtaskName;
@@ -84,14 +94,20 @@ public abstract class EvaluationSubtask {
                     failedInARow = 0;
                 } catch (WorkflowTraceFailedEarlyException ex) {
                     failedInARow++;
+                    report.failedEarly();
                     LOGGER.error("WorkflowTrace failed early for {} - Target: {} will retry", getSubtaskName(), getTargetName());
+                } catch (UndetectableOracleException ex) {
+                    failedInARow++;
+                    report.undetectableOracle();
+                    LOGGER.error("Target {} send no alert and did not close for {}", getTargetName(), getSubtaskName());
                 } catch (Exception ex) {
                     failedInARow++;
+                    report.genericFailure();
                     LOGGER.error("Failed to measure {} - Target: {} will retry", getSubtaskName(), getTargetName(),ex);
                 }
                 
-                if(failedInARow == 100) {
-                        LOGGER.error("Measuring failed 100 times in a row - aborting {} - Target: {}", getSubtaskName(), getTargetName());
+                if(failedInARow == MAX_FAILURES_IN_A_ROW || report.getUndetectableCount()> UNDETECTABLE_LIMIT) {
+                        LOGGER.error("Measuring aborted due to frequent failures - Subtask {} - Target: {}", getSubtaskName(), getTargetName());
                         report.setFailed(true);
                         return report;
                 }
@@ -110,6 +126,7 @@ public abstract class EvaluationSubtask {
                 keepMeasuring = false;
             }
         } while(keepMeasuring);
+        report.taskEnded();
         return report;
     }
     
@@ -146,7 +163,7 @@ public abstract class EvaluationSubtask {
     
     protected abstract String getBaselineIdentifier();
     
-    protected abstract Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException;
+    protected abstract Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException;
     
     public Map<String, List<Long>> getRunningMeasurements() {
         return runningMeasurements;
@@ -213,8 +230,9 @@ public abstract class EvaluationSubtask {
         } else {
             config.getDefaultClientConnection().setTransportHandlerType(TransportHandlerType.TCP_TIMING);
         }
-        
+        config.setWorkflowExecutorShouldClose(false);
         config.setHighestProtocolVersion(version);
+        
         return config;
     }
     
@@ -239,6 +257,47 @@ public abstract class EvaluationSubtask {
             }
         }
         return null;
+    }
+    
+    /*
+        Note: GenericReceive would allow us to measure a possible time difference
+        between an alert and a subsequent TCP close/rst. However, we are currently
+        measuring the time between sending and receiving the first byte in response,
+        which would hide this difference anyway. Hence, we stick to a specific
+        ReceiveAction to gain a speedup.
+    */
+    protected void setSpecificReceiveAction(WorkflowTrace workflowTrace) {
+        TlsAction lastAction = workflowTrace.getTlsActions().get(workflowTrace.getTlsActions().size() -1);
+        if(lastAction instanceof GenericReceiveAction) {
+            workflowTrace.getTlsActions().remove(lastAction);
+            workflowTrace.addTlsAction(new ReceiveAction(new AlertMessage()));
+        } else if(!(lastAction instanceof ReceiveAction)) {
+            LOGGER.warn("Last Action for {} is not a ReceiveAction and not a GenericReceive");
+        }
+    }
+    
+    /*
+     * Some implementations do not send an alert and do not close the connection.
+     * Our tests are unable to exploit these even if an oracle may be present.
+     */
+    protected boolean oraclePossible(State executedState) {
+        boolean gotAlert = WorkflowTraceUtil.didReceiveMessage(ProtocolMessageType.ALERT, executedState.getWorkflowTrace());
+        SocketState socketState = (((ClientTcpTransportHandler) (executedState.getTlsContext().getTransportHandler())).getSocketState());
+        
+        boolean isClosed = socketState == SocketState.CLOSED || socketState == SocketState.IO_EXCEPTION || socketState == SocketState.TIMEOUT || socketState == SocketState.PEER_WRITE_CLOSED;
+        return gotAlert || isClosed;
+    }
+    
+    protected void postExecutionCheck(State executedState, WorkflowExecutor executor) throws UndetectableOracleException, WorkflowTraceFailedEarlyException {
+        boolean workflowTraceSufficientlyExecuted = workflowTraceSufficientlyExecuted(executedState.getWorkflowTrace());
+        boolean oracleDetectable = oraclePossible(executedState);
+        executor.closeConnection();
+        
+        if(!workflowTraceSufficientlyExecuted) {
+            throw new WorkflowTraceFailedEarlyException();
+        } else if(!oracleDetectable) {
+            throw new UndetectableOracleException();
+        }
     }
     
     protected abstract boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace);

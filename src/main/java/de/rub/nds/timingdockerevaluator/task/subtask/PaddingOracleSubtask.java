@@ -1,12 +1,12 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
+import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.constants.AlgorithmResolver;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.constants.CipherType;
-import de.rub.nds.tlsattacker.core.constants.KeyExchangeAlgorithm;
 import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.DefaultWorkflowExecutor;
@@ -46,21 +46,9 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
             return AlgorithmResolver.getCipherType(cipher) == CipherType.BLOCK;
             }).findFirst().orElse(null);
         }
-        if (!serverReport.getVersions().isEmpty()) {
-            if (serverReport.getVersions().contains(ProtocolVersion.TLS12)) {
-                version = ProtocolVersion.TLS12;
-            } else if (serverReport.getVersions().contains(ProtocolVersion.TLS11)) {
-                version = ProtocolVersion.TLS11;
-            } else if (serverReport.getVersions().contains(ProtocolVersion.TLS10)) {
-                version = ProtocolVersion.TLS10;
-            } else {
-                version = serverReport.getVersions().get(0);
-            }
-
-            if (cipherSuite != null) {
-                vectors = (List<PaddingVector>) new VeryShortPaddingGenerator().getVectors(cipherSuite, version);
-            }
-            
+        version = determineVersion(serverReport);
+        if (version != null && cipherSuite != null) {
+            vectors = (List<PaddingVector>) new VeryShortPaddingGenerator().getVectors(cipherSuite, version);
         }
     }
 
@@ -75,7 +63,7 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
     }
 
     @Override
-    protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException {
+    protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException {
         PaddingVector testedVector = null;
         for (PaddingVector vector : vectors) {
             if (vector.getName().replace(" ", "_").equals(typeIdentifier)) {
@@ -91,12 +79,11 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         random.nextBytes(newRandom);
         config.setDefaultClientRandom(newRandom);
         final WorkflowTrace workflowTrace = new ClassicPaddingTraceGenerator(PaddingRecordGeneratorType.VERY_SHORT).getPaddingOracleWorkflowTrace(config, testedVector);
+        setSpecificReceiveAction(workflowTrace);
         final State state = new State(config, workflowTrace);
         final WorkflowExecutor executor = (WorkflowExecutor) new DefaultWorkflowExecutor(state);
         executor.executeWorkflow();
-        if(!workflowTraceSufficientlyExecuted(workflowTrace)) {
-            throw new WorkflowTraceFailedEarlyException();
-        }
+        postExecutionCheck(state, executor);
         return getMeasurement(state);
     }
     

@@ -2,11 +2,8 @@ package de.rub.nds.timingdockerevaluator.task;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.InspectContainerResponse;
-import com.github.dockerjava.api.exception.DockerException;
-import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.exception.NotModifiedException;
 import com.github.dockerjava.api.model.Image;
-import de.rub.nds.modifiablevariable.util.ArrayConverter;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.execution.ExecutionWatcher;
 import de.rub.nds.timingdockerevaluator.task.exception.ContainerFailedException;
@@ -21,7 +18,6 @@ import de.rub.nds.timingdockerevaluator.task.subtask.SubtaskReportWriter;
 import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.constants.TlsImageLabels;
 import de.rub.nds.tls.subject.docker.DockerClientManager;
-import de.rub.nds.tls.subject.docker.DockerTlsManagerFactory;
 import de.rub.nds.tls.subject.docker.DockerTlsServerInstance;
 import de.rub.nds.tlsattacker.core.config.delegate.ClientDelegate;
 import de.rub.nds.tlsattacker.core.config.delegate.GeneralDelegate;
@@ -35,7 +31,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class EvaluationTask {
+public class EvaluationTask extends TimingDockerTask {
 
     private static final Logger LOGGER = LogManager.getLogger();
     public static final String CONTAINER_NAME_PREFIX = "timingEval-";
@@ -48,20 +44,19 @@ public class EvaluationTask {
     private TlsImplementationType implementation;
     private String version;
     private ServerReport serverReport;
-    private final TimingDockerEvaluatorCommandConfig evaluationConfig;
     
 
     List<EvaluationSubtask> subtasks = new LinkedList<>();
 
     public EvaluationTask(Image image, TimingDockerEvaluatorCommandConfig evaluationConfig) {
+        super(evaluationConfig);
         this.implementation = TlsImplementationType.fromString(image.getLabels().get(TlsImageLabels.IMPLEMENTATION.getLabelName()));
         this.version = image.getLabels().get(TlsImageLabels.VERSION.getLabelName());
         this.targetName = implementation.toString() + "-" + version;
-        this.evaluationConfig = evaluationConfig;
     }
     
     public EvaluationTask(TimingDockerEvaluatorCommandConfig evaluationConfig) {
-        this.evaluationConfig = evaluationConfig;
+        super(evaluationConfig);
         this.targetName = (evaluationConfig.getSpecificName()!= null) ? evaluationConfig.getSpecificName(): "RemoteTarget";
     }
     
@@ -69,9 +64,11 @@ public class EvaluationTask {
 
     public void execute() {
         LOGGER.info("Starting tests for {}", targetName);
+        long startTimestamp = System.currentTimeMillis();
         try {
             if(evaluationConfig.isManagedTarget()) {
-                DockerTlsServerInstance dockerInstance = createDockerInstance();
+                DockerTlsServerInstance dockerInstance = createDockerInstance(implementation, version, evaluationConfig.isUseHostNetwork());
+                targetPort = dockerInstance.getHostInfo().getPort();
                 dockerInstance.start();
                 waitForContainer();
                 retrieveContainerIp(dockerInstance);
@@ -104,7 +101,7 @@ public class EvaluationTask {
             LOGGER.error("Evaluation failed unexpected for {}", targetName, ex);
             ExecutionWatcher.getReference().failedUnexpected(targetName);
         }
-
+        LOGGER.info("Finished evaluation for {} in {} minutes", targetName, (startTimestamp - System.currentTimeMillis()) / (60 * 1000));
         ExecutionWatcher.getReference().finishedTask();
     }
 
@@ -114,18 +111,12 @@ public class EvaluationTask {
         executeSubtasks();
     }
 
+    @Override
     public void stopContainter(DockerTlsServerInstance dockerInstance) {
         try {
             dockerInstance.stop();
         } catch (NotModifiedException exception) {
             LOGGER.warn("Failed to stop container for {} - was already stopped or never started!", targetName);
-        }
-    }
-
-    public void waitForContainer() {
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException ex) {
         }
     }
 
@@ -141,25 +132,7 @@ public class EvaluationTask {
         }
     }
 
-    private DockerTlsServerInstance createDockerInstance() {
-        try {
-            String containerName = CONTAINER_NAME_PREFIX + (implementation + version).replace(":", "-");
-            DockerTlsManagerFactory.TlsServerInstanceBuilder targetInstanceBuilder = DockerTlsManagerFactory.getTlsServerBuilder(implementation, version);
-            targetInstanceBuilder = targetInstanceBuilder.containerName(containerName).port(4433).hostname("0.0.0.0").ip("0.0.0.0").parallelize(true);
-            if(evaluationConfig.isUseHostNetwork()) {
-                targetInstanceBuilder = targetInstanceBuilder.hostConfigHook(hostConfig -> {
-                        hostConfig.withPortBindings(new LinkedList<>()).withNetworkMode("host");
-                        return hostConfig;});
-            }     
-            DockerTlsServerInstance targetInstance = targetInstanceBuilder.build();
-            targetPort = targetInstance.getHostInfo().getPort();
-            return targetInstance;
-        } catch (DockerException | InterruptedException ex) {
-            LOGGER.error("Failed to create instance ", ex);
-            throw new RuntimeException();
-        }
-    }
-
+    
     public void executeSubtasks() {
         for (EvaluationSubtask subtask : subtasks) {
             subtask.adjustScope(serverReport);

@@ -1,12 +1,13 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
+import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.delegate.ClientDelegate;
 import de.rub.nds.tlsattacker.core.config.delegate.GeneralDelegate;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
-import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
 import de.rub.nds.tlsattacker.core.record.Record;
+import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceiveAction;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceivingAction;
@@ -14,6 +15,7 @@ import de.rub.nds.tlsbreaker.lucky13.config.Lucky13CommandConfig;
 import de.rub.nds.tlsbreaker.lucky13.impl.Lucky13Attacker;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 
 public class Lucky13Subtask extends EvaluationSubtask {
@@ -39,7 +41,8 @@ public class Lucky13Subtask extends EvaluationSubtask {
 
     @Override
     protected List<String> getSubtaskIdentifiers() {
-        return Arrays.asList(new String[] {"NO_PADDING","LONG_PADDING"});
+        //ensure list is mutable
+        return new LinkedList<>(Arrays.asList(new String[] {"NO_PADDING","LONG_PADDING"}));
     }
 
     @Override
@@ -48,7 +51,7 @@ public class Lucky13Subtask extends EvaluationSubtask {
     }
 
     @Override
-    protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException {
+    protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException {
         Lucky13CommandConfig lucky13commandConfig = new Lucky13CommandConfig(new GeneralDelegate());
         lucky13commandConfig.getDelegate(ClientDelegate.class).setHost(getTargetIp() + ":" + getTargetPort());
         Lucky13Attacker attacker = new Lucky13Attacker(lucky13commandConfig, getBaseConfig(version, cipherSuite));
@@ -57,14 +60,11 @@ public class Lucky13Subtask extends EvaluationSubtask {
             padLen = 255;
         }
         Record record = attacker.createRecordWithPadding(padLen, cipherSuite);
-        WorkflowTrace workflowTrace = attacker.executeAttackRound(record);
-        if(!workflowTraceSufficientlyExecuted(workflowTrace)) {
-            throw new WorkflowTraceFailedEarlyException();
-        }
-        //attacker.getLastExecutor().closeConnection();
+        State executedState = attacker.executeAttackRound(record);
+        postExecutionCheck(executedState, attacker.getLastExecutor());
         return attacker.getLastResult();
     }
-    
+
     
     @Override
     protected boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace) {

@@ -4,7 +4,7 @@ package de.rub.nds.timingdockerevaluator.config;
 import com.beust.jcommander.Parameter;
 
 public class TimingDockerEvaluatorCommandConfig {
-    
+   
     @Parameter(names = "-i", description = "Number of measurements per step")
     private int measurementsPerStep = 10000;
     
@@ -14,11 +14,14 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-threads", "-t"}, description = "Number of threads to use for evaluation (= docker containers to evaluate in parallel)")
     private int threads = 1;
     
-    @Parameter(names = {"-library", "-l"}, description = "A specific library to filter for")
+    @Parameter(names = {"-library", "-l"}, description = "A specific library/libraries to filter for (use comma without blankspace for multiple)")
     private String specificLibrary = null;
     
-    @Parameter(names = {"-version", "-v"}, description = "A specific version to filter for, requires a library")
+    @Parameter(names = {"-version", "-v"}, description = "A specific version to filter for, requires a library (use comma without blankspace for multiple)")
     private String specificVersion = null;
+    
+    @Parameter(names = {"-baseVersion", "-b"}, description = "A base version to match using .contains() (use comma without blankspace for multiple)")
+    private String baseVersion = null;
     
     @Parameter(names = "-ip", description = "Specific IP to connect to instead of managed docker container")
     private String specificIp = null;
@@ -52,6 +55,15 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"--help", "-h"}, help = true)
     private boolean help = false;
+    
+    @Parameter(names = "-manageOnly", description = "Only manage docker containers")
+    private boolean manageOnly = false;
+    
+    @Parameter(names = "-measureOnly", description = "Only measure using given ip and port")
+    private boolean measureOnly = false;
+    
+    @Parameter(names = "-dry", description = "Collect images / targets but do not start evaluation process")
+    private boolean dryRun = false;
     
     public String getSpecificLibrary() {
         return specificLibrary;
@@ -183,5 +195,37 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setHelp(boolean help) {
         this.help = help;
+    }
+
+    public String getBaseVersion() {
+        return baseVersion;
+    }
+
+    public void setBaseVersion(String baseVersion) {
+        this.baseVersion = baseVersion;
+    }
+
+    public boolean isDryRun() {
+        return dryRun;
+    }
+
+    public void setDryRun(boolean dryRun) {
+        this.dryRun = dryRun;
+    }
+    
+    public boolean isManageOnly() {
+        return manageOnly;
+    }
+
+    public void setManageOnly(boolean manageOnly) {
+        this.manageOnly = manageOnly;
+    }
+
+    public boolean isMeasureOnly() {
+        return measureOnly;
+    }
+
+    public void setMeasureOnly(boolean measureOnly) {
+        this.measureOnly = measureOnly;
     }
 }

@@ -10,10 +10,16 @@ public class EvaluationSubtaskReport {
     private  String targetName;
     private  List<String> withDifference = new LinkedList<>();
     private  List<String> executedIdentifiers = new LinkedList<>();
+    private int genericFailureCount;
+    private int failedEarlyCount;
+    private int undetectableCount;
     private CipherSuite cipherSuite;
     private ProtocolVersion protocolVersion;
     private boolean failed = false;
-
+    private long startTimestamp = System.currentTimeMillis();
+    private long endTimestamp;
+    private long duration;
+    
     public EvaluationSubtaskReport() {
     }
     
@@ -50,6 +56,9 @@ public class EvaluationSubtaskReport {
     }
 
     public void setFailed(boolean failed) {
+        if(failed) {
+            taskEnded();
+        }
         this.failed = failed;
     }
 
@@ -88,5 +97,69 @@ public class EvaluationSubtaskReport {
     public void setExecutedIdentifiers(List<String> executedIdentifiers) {
         this.executedIdentifiers = new LinkedList<>(executedIdentifiers);
     }
+    
+     public int getGenericFailureCount() {
+        return genericFailureCount;
+    }
 
+    public void setGenericFailureCount(int genericFailureCount) {
+        this.genericFailureCount = genericFailureCount;
+    }
+
+    public int getFailedEarlyCount() {
+        return failedEarlyCount;
+    }
+
+    public void setFailedEarlyCount(int failedEarlyCount) {
+        this.failedEarlyCount = failedEarlyCount;
+    }
+    
+    public int getUndetectableCount() {
+        return undetectableCount;
+    }
+
+    public void setUndetectableCount(int undetectableCount) {
+        this.undetectableCount = undetectableCount;
+    }
+
+    public void failedEarly() {
+        failedEarlyCount++;
+    }
+    
+    public void genericFailure() {
+        genericFailureCount++;
+    }
+    
+    public void undetectableOracle() {
+        undetectableCount++;
+    }
+    
+    public void taskEnded() {
+        setEndTimestamp(System.currentTimeMillis());
+        setDuration(getEndTimestamp() - getStartTimestamp());
+    }
+
+    public long getStartTimestamp() {
+        return startTimestamp;
+    }
+
+    public void setStartTimestamp(long startTimestamp) {
+        this.startTimestamp = startTimestamp;
+    }
+
+    public long getEndTimestamp() {
+        return endTimestamp;
+    }
+
+    public void setEndTimestamp(long endTimestamp) {
+        this.endTimestamp = endTimestamp;
+    }
+
+    public long getDuration() {
+        return duration;
+    }
+
+    public void setDuration(long duration) {
+        this.duration = duration;
+    }
 }

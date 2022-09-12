@@ -1,23 +1,18 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
+import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.constants.AlgorithmResolver;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.constants.KeyExchangeAlgorithm;
-import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
-import de.rub.nds.tlsattacker.core.constants.RunningModeType;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.util.CertificateFetcher;
 import de.rub.nds.tlsattacker.core.workflow.DefaultWorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
-import de.rub.nds.tlsattacker.core.workflow.action.ReceiveAction;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceiveTillAction;
-import de.rub.nds.tlsattacker.core.workflow.action.ReceivingAction;
-import de.rub.nds.tlsattacker.transport.tcp.proxy.TimingProxyClientTcpTransportHandler;
-import de.rub.nds.tlsattacker.transport.tcp.timing.TimingClientTcpTransportHandler;
 import de.rub.nds.tlsscanner.serverscanner.probe.bleichenbacher.constans.BleichenbacherScanType;
 import de.rub.nds.tlsscanner.serverscanner.probe.bleichenbacher.constans.BleichenbacherWorkflowType;
 import de.rub.nds.tlsscanner.serverscanner.probe.bleichenbacher.trace.BleichenbacherWorkflowGenerator;
@@ -85,7 +80,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
     }
 
     @Override
-    protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException {
+    protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException {
         Pkcs1Vector selectedVector = null;
         for(Pkcs1Vector vector: vectors) {
             if(vector.getName().replace(" ", "_").equals(typeIdentifier)) {
@@ -101,12 +96,11 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
         random.nextBytes(newRandom);
         config.setDefaultClientRandom(newRandom);
         final WorkflowTrace workflowTrace = BleichenbacherWorkflowGenerator.generateWorkflow(config, BleichenbacherWorkflowType.CKE_CCS_FIN, selectedVector.getEncryptedValue());
+        setSpecificReceiveAction(workflowTrace);
         final State state = new State(config, workflowTrace);
         final WorkflowExecutor executor = (WorkflowExecutor) new DefaultWorkflowExecutor(state);
         executor.executeWorkflow();
-        if(!workflowTraceSufficientlyExecuted(workflowTrace)) {
-            throw new WorkflowTraceFailedEarlyException();
-        }
+        postExecutionCheck(state, executor);
         return getMeasurement(state);
     }
 

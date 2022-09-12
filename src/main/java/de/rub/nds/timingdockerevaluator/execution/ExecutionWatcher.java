@@ -73,19 +73,22 @@ public class ExecutionWatcher {
     }
     
     public void printSummary() {
-        LOGGER.info("Failed libraries:");
+        LOGGER.info("Failed images:");
+        LOGGER.info("**************");
         LOGGER.info("Failed Container: {}", failedContainer.stream().collect(Collectors.joining(",")));
         LOGGER.info("Failed to Connect: {}", failedToConnect.stream().collect(Collectors.joining(",")));
         LOGGER.info("Failed to Handshake: {}", failedToHandshake.stream().collect(Collectors.joining(",")));
         LOGGER.info("Failed unexpected: {}", unexpectedFailure.stream().collect(Collectors.joining(",")));
         LOGGER.info("Failed to find any applicable subtask: {}", failedToFindSubtask.stream().collect(Collectors.joining(",")));
         LOGGER.info("Unapplicable Subtasks:");
+        LOGGER.info("**********************");
         for(String subtaskName : unapplicableSubtasks.keySet()) {
             LOGGER.info("Unapplicable subtask {}: {}", subtaskName, unapplicableSubtasks.get(subtaskName).stream().collect(Collectors.joining(",")));
         }
         LOGGER.info("Findings:");
+        LOGGER.info("*********");
         for(String subtaskName : subtaskFindings.keySet()) {
-            LOGGER.info("Subtask finding {}: {}", subtaskName, subtaskFindings.get(subtaskName).stream().collect(Collectors.joining(",")));
+            LOGGER.info("Subtask {}: {}", subtaskName, subtaskFindings.get(subtaskName).stream().collect(Collectors.joining(",")));
         }
     }
     
