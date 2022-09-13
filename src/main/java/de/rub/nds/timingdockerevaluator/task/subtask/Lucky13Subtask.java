@@ -6,7 +6,9 @@ import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleExcepti
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.delegate.ClientDelegate;
 import de.rub.nds.tlsattacker.core.config.delegate.GeneralDelegate;
+import de.rub.nds.tlsattacker.core.constants.AlgorithmResolver;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
+import de.rub.nds.tlsattacker.core.constants.KeyExchangeAlgorithm;
 import de.rub.nds.tlsattacker.core.record.Record;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.DefaultWorkflowExecutor;
@@ -28,17 +30,20 @@ public class Lucky13Subtask extends EvaluationSubtask {
     
     public Lucky13Subtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
         super("Lucky13", targetName, port, ip, evaluationConfig, parentTask);
-        cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
     }
     
     @Override
     public boolean isApplicable() {
-        return supportsCipher && version != null;
+        return cipherSuite != null && version != null;
     }
 
     @Override
     public void adjustScope(ServerReport serverReport) {
-        supportsCipher = serverReport.getCipherSuites().contains(cipherSuite);
+         if(serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
+            cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
+        } else {
+            cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().endsWith("_SHA")).findFirst().orElse(null);
+        }
         version = determineVersion(serverReport);
     }
 
