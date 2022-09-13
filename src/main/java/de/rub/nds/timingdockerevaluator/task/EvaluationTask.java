@@ -18,10 +18,13 @@ import de.rub.nds.timingdockerevaluator.task.subtask.SubtaskReportWriter;
 import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.constants.TlsImageLabels;
 import de.rub.nds.tls.subject.docker.DockerClientManager;
+import de.rub.nds.tls.subject.docker.DockerTlsInstance;
 import de.rub.nds.tls.subject.docker.DockerTlsServerInstance;
 import de.rub.nds.tlsattacker.core.config.delegate.ClientDelegate;
 import de.rub.nds.tlsattacker.core.config.delegate.GeneralDelegate;
 import de.rub.nds.tlsattacker.core.exceptions.TransportHandlerConnectException;
+import de.rub.nds.tlsattacker.core.state.State;
+import de.rub.nds.tlsattacker.core.workflow.ParallelExecutor;
 import de.rub.nds.tlsscanner.core.constants.TlsProbeType;
 import de.rub.nds.tlsscanner.serverscanner.config.ServerScannerConfig;
 import de.rub.nds.tlsscanner.serverscanner.execution.TlsServerScanner;
@@ -30,6 +33,8 @@ import java.util.LinkedList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import de.rub.nds.tlsscanner.serverscanner.config.delegate.CallbackDelegate;
+import java.util.function.Function;
 
 public class EvaluationTask extends TimingDockerTask {
 
@@ -44,7 +49,7 @@ public class EvaluationTask extends TimingDockerTask {
     private TlsImplementationType implementation;
     private String version;
     private ServerReport serverReport;
-    
+    private DockerTlsServerInstance dockerInstance;
 
     List<EvaluationSubtask> subtasks = new LinkedList<>();
 
@@ -67,9 +72,7 @@ public class EvaluationTask extends TimingDockerTask {
         long startTimestamp = System.currentTimeMillis();
         try {
             if(evaluationConfig.isManagedTarget()) {
-                DockerTlsServerInstance dockerInstance = createDockerInstance(implementation, version, evaluationConfig.isUseHostNetwork());
-                targetPort = dockerInstance.getHostInfo().getPort();
-                dockerInstance.start();
+                dockerInstance = prepareNewDockerContainer();
                 waitForContainer();
                 retrieveContainerIp(dockerInstance);
                 if(evaluationConfig.isUseHostNetwork()) {
@@ -79,7 +82,6 @@ public class EvaluationTask extends TimingDockerTask {
                     LOGGER.info("Switched port for {} from {} to {}", targetName, oldPort, targetPort);
                 }
                 testTarget();
-                stopContainter(dockerInstance);
             } else {
                 targetIp = evaluationConfig.getSpecificIp();
                 targetPort = evaluationConfig.getSpecificPort();
@@ -100,9 +102,20 @@ public class EvaluationTask extends TimingDockerTask {
         } catch (Exception ex) {
             LOGGER.error("Evaluation failed unexpected for {}", targetName, ex);
             ExecutionWatcher.getReference().failedUnexpected(targetName);
+        } finally {
+            if(evaluationConfig.isManagedTarget()) {
+                stopContainter(dockerInstance);
+            }
         }
-        LOGGER.info("Finished evaluation for {} in {} minutes", targetName, (startTimestamp - System.currentTimeMillis()) / (60 * 1000));
+        LOGGER.info("Finished evaluation for {} in {} minutes", targetName, (System.currentTimeMillis() - startTimestamp) / (60 * 1000));
         ExecutionWatcher.getReference().finishedTask();
+    }
+
+    private DockerTlsServerInstance prepareNewDockerContainer() {
+        DockerTlsServerInstance newDockerInstance = createDockerInstance(implementation, version, evaluationConfig.isUseHostNetwork());
+        targetPort = newDockerInstance.getHostInfo().getPort();
+        newDockerInstance.start();
+        return newDockerInstance;
     }
 
     private void testTarget() throws FailedToHandshakeException, NoSubtaskApplicableException {
@@ -151,16 +164,32 @@ public class EvaluationTask extends TimingDockerTask {
         scannerConfig.setParallelProbes(1);
         scannerConfig.setConfigSearchCooldown(true);
 
-        TlsServerScanner scanner = new TlsServerScanner(scannerConfig);
+        ParallelExecutor parallelExecutor = new ParallelExecutor(1, 2);
+        if(evaluationConfig.isEphemeral()) {
+            parallelExecutor.setDefaultBeforeTransportPreInitCallback(getRestartCallable());
+        }
+        
+        TlsServerScanner scanner = new TlsServerScanner(scannerConfig, parallelExecutor);
         serverReport = scanner.scan();
+    }
+
+    public Function<State, Integer> getRestartCallable() {
+        return (State state) -> {
+            restartContainer();
+            return 0;};
+    }
+
+    public void restartContainer() {
+        stopContainter(dockerInstance);
+        dockerInstance = prepareNewDockerContainer();
     }
 
     public void buildTaskList() throws FailedToHandshakeException, NoSubtaskApplicableException {
         if (serverReport.getSpeaksProtocol() != null && serverReport.getSpeaksProtocol() == true) {
             EvaluationSubtask[] implementedSubtasks = {
-                new BleichenbacherSubtask(targetName, targetPort, targetIp, evaluationConfig),
-                new PaddingOracleSubtask(targetName, targetPort, targetIp, evaluationConfig),
-                new Lucky13Subtask(targetName, targetPort, targetIp, evaluationConfig)
+                new BleichenbacherSubtask(targetName, targetPort, targetIp, evaluationConfig, this),
+                new PaddingOracleSubtask(targetName, targetPort, targetIp, evaluationConfig, this),
+                new Lucky13Subtask(targetName, targetPort, targetIp, evaluationConfig, this)
             };
 
             for (EvaluationSubtask plannedSubtask : implementedSubtasks) {

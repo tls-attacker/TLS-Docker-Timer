@@ -1,6 +1,7 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
+import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.Config;
@@ -10,8 +11,10 @@ import de.rub.nds.tlsattacker.core.constants.ProtocolMessageType;
 import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
 import de.rub.nds.tlsattacker.core.constants.RunningModeType;
 import de.rub.nds.tlsattacker.core.constants.SignatureAndHashAlgorithm;
+import de.rub.nds.tlsattacker.core.exceptions.WorkflowExecutionException;
 import de.rub.nds.tlsattacker.core.protocol.message.AlertMessage;
 import de.rub.nds.tlsattacker.core.state.State;
+import de.rub.nds.tlsattacker.core.workflow.DefaultWorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTraceUtil;
@@ -43,6 +46,7 @@ public abstract class EvaluationSubtask {
     private static final int MAX_FAILURES_IN_A_ROW = 20;
     private static final int UNDETECTABLE_LIMIT = 300;
     
+    
     private final Map<String, List<Long>> runningMeasurements = new HashMap<>();
     private final Map<String, List<Long>> finishedMeasurements = new HashMap<>();
     protected int measurementsDone;
@@ -51,6 +55,7 @@ public abstract class EvaluationSubtask {
     private final String targetName;
     private final EvaluationSubtaskReport report;
     private final TimingDockerEvaluatorCommandConfig evaluationConfig;
+    protected final EvaluationTask parentTask;
     
     private final int targetPort;
     private final String targetIp; 
@@ -60,13 +65,14 @@ public abstract class EvaluationSubtask {
     protected ProtocolVersion version;
     protected CipherSuite cipherSuite;
     
-    public EvaluationSubtask(String taskName, String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig) {
+    public EvaluationSubtask(String taskName, String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
         this.subtaskName = taskName;
         this.targetName = targetName;
         this.report = new EvaluationSubtaskReport(taskName, targetName);
         this.targetIp = ip;
         this.targetPort = port;
         this.evaluationConfig = evaluationConfig;
+        this.parentTask = parentTask;
         measurementsDone = 0;
         nextMaximum = evaluationConfig.getMeasurementsPerStep();
     }
@@ -225,6 +231,7 @@ public abstract class EvaluationSubtask {
         config.getDefaultClientConnection().setProxyDataPort(evaluationConfig.getProxyDataPort());
         config.getDefaultClientConnection().setTimeout(evaluationConfig.getTimeout());
         config.getDefaultClientConnection().setFirstTimeout(evaluationConfig.getTimeout());
+        config.getDefaultClientConnection().setConnectionTimeout(evaluationConfig.getTimeout());
         if(evaluationConfig.isUseProxy()) {
             config.getDefaultClientConnection().setTransportHandlerType(TransportHandlerType.TCP_PROXY_TIMING);
         } else {
@@ -247,7 +254,7 @@ public abstract class EvaluationSubtask {
     }
     
     public ProtocolVersion determineVersion(ServerReport serverReport) {
-        if (!serverReport.getVersions().isEmpty()) {
+        if (serverReport.getVersions() != null && !serverReport.getVersions().isEmpty()) {
             if (serverReport.getVersions().contains(ProtocolVersion.TLS12)) {
                 return ProtocolVersion.TLS12;
             } else if (serverReport.getVersions().contains(ProtocolVersion.TLS11)) {
@@ -298,6 +305,19 @@ public abstract class EvaluationSubtask {
         } else if(!oracleDetectable) {
             throw new UndetectableOracleException();
         }
+    }
+    
+    protected void prepareExecutor(WorkflowExecutor executor) {
+        if(evaluationConfig.isEphemeral()) {
+            executor.setBeforeTransportPreInitCallback(parentTask.getRestartCallable());
+        }
+    }
+    
+    protected void runExecutor(final State state) throws WorkflowTraceFailedEarlyException, UndetectableOracleException, WorkflowExecutionException {
+        final WorkflowExecutor executor = (WorkflowExecutor) new DefaultWorkflowExecutor(state);
+        prepareExecutor(executor);
+        executor.executeWorkflow();
+        postExecutionCheck(state, executor);
     }
     
     protected abstract boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace);

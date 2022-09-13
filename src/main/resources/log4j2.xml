@@ -14,6 +14,7 @@
             <AppenderRef ref="File"/>
         </Root>
         <Logger name="de.rub.nds.timingdockerevaluator" level="info"/>
+        <Logger name="de.rub.nds.tlsattacker.core.workflow.task" level="info"/>
         
     </Loggers>
 </Configuration>

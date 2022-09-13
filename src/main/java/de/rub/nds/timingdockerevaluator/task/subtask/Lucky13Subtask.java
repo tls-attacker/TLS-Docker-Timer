@@ -1,6 +1,7 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
+import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.delegate.ClientDelegate;
@@ -8,6 +9,8 @@ import de.rub.nds.tlsattacker.core.config.delegate.GeneralDelegate;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.record.Record;
 import de.rub.nds.tlsattacker.core.state.State;
+import de.rub.nds.tlsattacker.core.workflow.DefaultWorkflowExecutor;
+import de.rub.nds.tlsattacker.core.workflow.WorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceiveAction;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceivingAction;
@@ -23,8 +26,8 @@ public class Lucky13Subtask extends EvaluationSubtask {
     private boolean supportsCipher = false;
     
     
-    public Lucky13Subtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig) {
-        super("Lucky13", targetName, port, ip, evaluationConfig);
+    public Lucky13Subtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
+        super("Lucky13", targetName, port, ip, evaluationConfig, parentTask);
         cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
     }
     
@@ -55,14 +58,15 @@ public class Lucky13Subtask extends EvaluationSubtask {
         Lucky13CommandConfig lucky13commandConfig = new Lucky13CommandConfig(new GeneralDelegate());
         lucky13commandConfig.getDelegate(ClientDelegate.class).setHost(getTargetIp() + ":" + getTargetPort());
         Lucky13Attacker attacker = new Lucky13Attacker(lucky13commandConfig, getBaseConfig(version, cipherSuite));
+        
         int padLen = 0;
         if(typeIdentifier.equals("LONG_PADDING")) {
             padLen = 255;
         }
         Record record = attacker.createRecordWithPadding(padLen, cipherSuite);
-        State executedState = attacker.executeAttackRound(record);
-        postExecutionCheck(executedState, attacker.getLastExecutor());
-        return attacker.getLastResult();
+        State state = attacker.buildAttackState(record);
+        runExecutor(state);
+        return getMeasurement(state);
     }
 
     

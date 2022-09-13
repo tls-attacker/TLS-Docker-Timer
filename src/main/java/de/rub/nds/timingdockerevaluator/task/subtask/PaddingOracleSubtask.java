@@ -1,6 +1,7 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
+import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.Config;
@@ -8,6 +9,7 @@ import de.rub.nds.tlsattacker.core.constants.AlgorithmResolver;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.constants.CipherType;
 import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
+import de.rub.nds.tlsattacker.core.exceptions.WorkflowExecutionException;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.DefaultWorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowExecutor;
@@ -28,8 +30,8 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
     private final Random random = new Random(System.currentTimeMillis());
     List<PaddingVector> vectors;
 
-    public PaddingOracleSubtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig) {
-        super("PaddingOracle", targetName, port, ip, evaluationConfig);
+    public PaddingOracleSubtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
+        super("PaddingOracle", targetName, port, ip, evaluationConfig, parentTask);
     }
 
     @Override
@@ -81,11 +83,11 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         final WorkflowTrace workflowTrace = new ClassicPaddingTraceGenerator(PaddingRecordGeneratorType.VERY_SHORT).getPaddingOracleWorkflowTrace(config, testedVector);
         setSpecificReceiveAction(workflowTrace);
         final State state = new State(config, workflowTrace);
-        final WorkflowExecutor executor = (WorkflowExecutor) new DefaultWorkflowExecutor(state);
-        executor.executeWorkflow();
-        postExecutionCheck(state, executor);
+        runExecutor(state);
         return getMeasurement(state);
     }
+
+    
     
     @Override
     protected boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace) {

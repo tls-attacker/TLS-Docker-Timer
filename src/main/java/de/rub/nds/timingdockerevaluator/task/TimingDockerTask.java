@@ -31,7 +31,7 @@ public abstract class TimingDockerTask {
 
     public void waitForContainer() {
         try {
-            Thread.sleep(5000);
+            Thread.sleep(200);
         } catch (InterruptedException ex) {
         }
     }

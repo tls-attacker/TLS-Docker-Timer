@@ -65,6 +65,9 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = "-dry", description = "Collect images / targets but do not start evaluation process")
     private boolean dryRun = false;
     
+    @Parameter(names = {"-ephemeralContainers","-e"}, description = "Server containers are restarted before each new handshake")
+    private boolean ephemeral = false;
+    
     public String getSpecificLibrary() {
         return specificLibrary;
     }
@@ -227,5 +230,13 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setMeasureOnly(boolean measureOnly) {
         this.measureOnly = measureOnly;
+    }
+
+    public boolean isEphemeral() {
+        return ephemeral;
+    }
+
+    public void setEphemeral(boolean ephemeral) {
+        this.ephemeral = ephemeral;
     }
 }

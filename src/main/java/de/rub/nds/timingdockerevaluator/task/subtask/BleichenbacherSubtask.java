@@ -1,6 +1,7 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
+import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.Config;
@@ -36,8 +37,8 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
     private PublicKey publicKey;
     private List<Pkcs1Vector> vectors;
     
-    public BleichenbacherSubtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig) {
-        super("Bleichenbacher", targetName, port, ip, evaluationConfig);
+    public BleichenbacherSubtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
+        super("Bleichenbacher", targetName, port, ip, evaluationConfig, parentTask);
     }
 
     @Override
@@ -54,6 +55,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
         
         version = determineVersion(serverReport);
         if (cipherSuite != null && version != null) {
+            parentTask.restartContainer();
             publicKey = CertificateFetcher.fetchServerPublicKey(getBaseConfig(version, cipherSuite));
             if (publicKey == null) {
                 LOGGER.error("Failed to fetch any PublicKey for {}", getTargetName());
@@ -98,9 +100,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
         final WorkflowTrace workflowTrace = BleichenbacherWorkflowGenerator.generateWorkflow(config, BleichenbacherWorkflowType.CKE_CCS_FIN, selectedVector.getEncryptedValue());
         setSpecificReceiveAction(workflowTrace);
         final State state = new State(config, workflowTrace);
-        final WorkflowExecutor executor = (WorkflowExecutor) new DefaultWorkflowExecutor(state);
-        executor.executeWorkflow();
-        postExecutionCheck(state, executor);
+        runExecutor(state);
         return getMeasurement(state);
     }
 
