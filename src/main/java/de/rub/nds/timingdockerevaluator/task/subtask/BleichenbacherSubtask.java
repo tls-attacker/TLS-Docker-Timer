@@ -43,7 +43,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
 
     @Override
     public void adjustScope(ServerReport serverReport) {
-        
+        super.adjustScope(serverReport);
         if(serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
             cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
         } else {
@@ -55,7 +55,12 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
         
         version = determineVersion(serverReport);
         if (cipherSuite != null && version != null) {
-            parentTask.restartContainer();
+            if(evaluationConfig.isEphemeral()) {
+               parentTask.restartContainer(); 
+            } else if(evaluationConfig.isKillProcess()) {
+                parentTask.restartServer();
+            }
+            
             publicKey = CertificateFetcher.fetchServerPublicKey(getBaseConfig(version, cipherSuite));
             if (publicKey == null) {
                 LOGGER.error("Failed to fetch any PublicKey for {}", getTargetName());

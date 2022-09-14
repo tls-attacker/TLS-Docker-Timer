@@ -45,12 +45,19 @@ public abstract class TimingDockerTask {
                 targetInstanceBuilder = targetInstanceBuilder.hostConfigHook(hostConfig -> {
                         hostConfig.withPortBindings(new LinkedList<>()).withNetworkMode("host");
                         return hostConfig;});
-            }     
+            } 
+            setTargetSpecificParameters(implementation, targetInstanceBuilder);
             DockerTlsServerInstance targetInstance = targetInstanceBuilder.build();
             return targetInstance;
         } catch (DockerException | InterruptedException ex) {
             LOGGER.error("Failed to create instance ", ex);
             throw new InstanceCreationFailedException();
         }
+    }
+    
+    private void setTargetSpecificParameters(TlsImplementationType implementation, DockerTlsManagerFactory.TlsServerInstanceBuilder builder) {
+       if(implementation == TlsImplementationType.BEARSSL) {
+           builder.additionalParameters("--policy=/cert/policies/botan-policy.txt");
+       }
     }
 }

@@ -41,6 +41,7 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
 
     @Override
     public void adjustScope(ServerReport serverReport) {
+        super.adjustScope(serverReport);
         if(serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
             cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
         } else  {
@@ -87,7 +88,10 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         return getMeasurement(state);
     }
 
-    
+    @Override
+    protected boolean isCompareAllVectorCombinations() {
+        return true;
+    }
     
     @Override
     protected boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace) {

@@ -7,7 +7,7 @@ import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.Image;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
-import de.rub.nds.timingdockerevaluator.task.subtask.RScriptManager;
+import de.rub.nds.timingdockerevaluator.task.eval.RScriptManager;
 import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.constants.TlsImageLabels;
 import de.rub.nds.tls.subject.docker.DockerClientManager;
@@ -46,9 +46,7 @@ public class Main {
             return;
         }
         checkRStatus();
-        LOGGER.info("Measurements per step set to {}", evaluationConfig.getMeasurementsPerStep());
-        LOGGER.info("Maximum measurements per vector set to {}", evaluationConfig.getTotalMeasurements());
-        LOGGER.info("Analyzing {} in parallel", evaluationConfig.getThreads());
+        logConfiguration();
 
         ExecutorService executor;
         if (evaluationConfig.isManagedTarget()) {
@@ -63,6 +61,16 @@ public class Main {
             ExecutionWatcher.getReference().printSummary();
         } catch (InterruptedException ex) {
             LOGGER.error(ex);
+        }
+    }
+
+    private static void logConfiguration() {
+        LOGGER.info("Measurements per step set to {}", evaluationConfig.getMeasurementsPerStep());
+        LOGGER.info("Maximum measurements per vector set to {}", evaluationConfig.getTotalMeasurements());
+        LOGGER.info("Analyzing {} in parallel", evaluationConfig.getThreads());
+        LOGGER.info("Ephemeral server instances set to: {}", evaluationConfig.isEphemeral());
+        if(evaluationConfig.getSpecificSubtask() != null) {
+            LOGGER.info("Limiting tests to subtask: {}", evaluationConfig.getSpecificSubtask());
         }
     }
 

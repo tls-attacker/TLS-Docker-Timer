@@ -33,7 +33,7 @@ import java.util.LinkedList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import de.rub.nds.tlsscanner.serverscanner.config.delegate.CallbackDelegate;
+import java.io.IOException;
 import java.util.function.Function;
 
 public class EvaluationTask extends TimingDockerTask {
@@ -150,7 +150,11 @@ public class EvaluationTask extends TimingDockerTask {
         for (EvaluationSubtask subtask : subtasks) {
             subtask.adjustScope(serverReport);
             EvaluationSubtaskReport report = subtask.evaluate();
+            ExecutionWatcher.getReference().finishedSubtask(report);
             SubtaskReportWriter.writeReport(report);
+            if(report.isFailed()) {
+                ExecutionWatcher.getReference().abortedSubtask(report.getTaskName(), report.getTargetName());
+            }
         }
     }
 
@@ -175,8 +179,20 @@ public class EvaluationTask extends TimingDockerTask {
 
     public Function<State, Integer> getRestartCallable() {
         return (State state) -> {
-            restartContainer();
+            if(evaluationConfig.isEphemeral()) {
+                restartContainer();
+            } else if(evaluationConfig.isKillProcess()) {
+                restartServer();
+            }
             return 0;};
+    }
+
+    public void restartServer() {
+        try {
+            Runtime.getRuntime().exec("curl --connect-timeout 2 " + targetIp + ":8090/killprocess");
+        } catch (IOException ex) {
+            LOGGER.error("Failed to call restart URL", ex);
+        }
     }
 
     public void restartContainer() {

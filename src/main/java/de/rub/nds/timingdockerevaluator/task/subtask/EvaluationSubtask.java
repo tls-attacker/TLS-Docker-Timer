@@ -1,7 +1,9 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
+import de.rub.nds.timingdockerevaluator.task.eval.RScriptManager;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
+import de.rub.nds.timingdockerevaluator.task.eval.VectorEvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.Config;
@@ -11,6 +13,7 @@ import de.rub.nds.tlsattacker.core.constants.ProtocolMessageType;
 import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
 import de.rub.nds.tlsattacker.core.constants.RunningModeType;
 import de.rub.nds.tlsattacker.core.constants.SignatureAndHashAlgorithm;
+import de.rub.nds.tlsattacker.core.exceptions.TransportHandlerConnectException;
 import de.rub.nds.tlsattacker.core.exceptions.WorkflowExecutionException;
 import de.rub.nds.tlsattacker.core.protocol.message.AlertMessage;
 import de.rub.nds.tlsattacker.core.state.State;
@@ -27,6 +30,9 @@ import de.rub.nds.tlsattacker.transport.tcp.ClientTcpTransportHandler;
 import de.rub.nds.tlsattacker.transport.tcp.proxy.TimingProxyClientTcpTransportHandler;
 import de.rub.nds.tlsattacker.transport.tcp.timing.TimingClientTcpTransportHandler;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
+import de.rub.nds.tlsscanner.serverscanner.selector.ConfigFilter;
+import de.rub.nds.tlsscanner.serverscanner.selector.ConfigFilterProfile;
+import de.rub.nds.tlsscanner.serverscanner.selector.DefaultConfigProfile;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -43,8 +49,9 @@ public abstract class EvaluationSubtask {
     
     private final static Random notReallyRandom = new Random(System.currentTimeMillis());
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final int MAX_FAILURES_IN_A_ROW = 20;
+    private static final int MAX_FAILURES_IN_A_ROW = 15;
     private static final int UNDETECTABLE_LIMIT = 300;
+    private static final int MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART = 5;
     
     
     private final Map<String, List<Long>> runningMeasurements = new HashMap<>();
@@ -54,7 +61,7 @@ public abstract class EvaluationSubtask {
     private final String subtaskName;
     private final String targetName;
     private final EvaluationSubtaskReport report;
-    private final TimingDockerEvaluatorCommandConfig evaluationConfig;
+    protected final TimingDockerEvaluatorCommandConfig evaluationConfig;
     protected final EvaluationTask parentTask;
     
     private final int targetPort;
@@ -64,6 +71,9 @@ public abstract class EvaluationSubtask {
     
     protected ProtocolVersion version;
     protected CipherSuite cipherSuite;
+    
+    private ServerReport serverReport;
+    private boolean switchedToRestarting = false;
     
     public EvaluationSubtask(String taskName, String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
         this.subtaskName = taskName;
@@ -79,7 +89,9 @@ public abstract class EvaluationSubtask {
     
     public abstract boolean isApplicable();
     
-    public abstract void adjustScope(ServerReport serverReport);
+    public void adjustScope(ServerReport serverReport) {
+        this.serverReport = serverReport;
+    }
     
     public EvaluationSubtaskReport evaluate() {
         LOGGER.info("Starting evaluation of {} - Target: {}", getSubtaskName(), getTargetName());
@@ -93,11 +105,13 @@ public abstract class EvaluationSubtask {
         do {
             int[] executionPlan = getExecutionPlan(subtaskIdentifiers.size(), evaluationConfig.getMeasurementsPerStep());
             int failedInARow = 0;
+            int unreachableInARow = 0;
             for(int i = 0; i < executionPlan.length; i++) {
                 try {
                     Long newMeasurement = measure(subtaskIdentifiers.get(executionPlan[i]));
                     addMeasurement(subtaskIdentifiers.get(executionPlan[i]), newMeasurement);
                     failedInARow = 0;
+                    unreachableInARow = 0;
                 } catch (WorkflowTraceFailedEarlyException ex) {
                     failedInARow++;
                     report.failedEarly();
@@ -106,6 +120,14 @@ public abstract class EvaluationSubtask {
                     failedInARow++;
                     report.undetectableOracle();
                     LOGGER.error("Target {} send no alert and did not close for {}", getTargetName(), getSubtaskName());
+                } catch (TransportHandlerConnectException connectException) {
+                    unreachableInARow++;
+                    failedInARow++;
+                    LOGGER.error("Target {} was unreachable", getTargetName());
+                    if(unreachableInARow == MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART && ((evaluationConfig.isEphemeral() || evaluationConfig.isKillProcess()))) {
+                        LOGGER.warn("Failed to reach {} {} times - switching to restarting mode", getTargetName(), MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART);
+                        switchedToRestarting = true;
+                    }
                 } catch (Exception ex) {
                     failedInARow++;
                     report.genericFailure();
@@ -120,13 +142,12 @@ public abstract class EvaluationSubtask {
             }
             measurementsDone += evaluationConfig.getMeasurementsPerStep();
             LOGGER.info("Subtask {} completed {} measurements for {}", getSubtaskName(), measurementsDone, getTargetName());
-            RScriptManager scriptManager = new RScriptManager(baselineIdentifier, runningMeasurements);
+            RScriptManager scriptManager = new RScriptManager(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations());
             scriptManager.prepareFiles(getSubtaskName(), getTargetName());
-            Map<String, Integer> rOutputMap;
             
             if(!evaluationConfig.isSkipR()) {
-                rOutputMap = scriptManager.testWithR(measurementsDone); 
-                processAnalysisResults(subtaskIdentifiers, rOutputMap);
+                List<VectorEvaluationTask> executedEvalTasks = scriptManager.testWithR(measurementsDone); 
+                processAnalysisResults(subtaskIdentifiers, executedEvalTasks);
             }       
             if(subtaskIdentifiers.size() <= 1 || measurementsDone >= evaluationConfig.getTotalMeasurements()) {
                 keepMeasuring = false;
@@ -143,24 +164,24 @@ public abstract class EvaluationSubtask {
         runningMeasurements.get(identifier).add(measured);
     }
     
-    private void processAnalysisResults(List<String> subtaskIdentifiers, Map<String, Integer> rOutputMap) {
-        for(String identifier: rOutputMap.keySet()) {
-            switch(rOutputMap.get(identifier)) {
+    private void processAnalysisResults(List<String> subtaskIdentifiers, List<VectorEvaluationTask> executedEvalTasks) {
+        for(VectorEvaluationTask task: executedEvalTasks) {
+            switch(task.getExitCode()) {
                 case 12:
-                    LOGGER.info("Found significant difference for {} - Target: {}", identifier, getTargetName());
-                    subtaskIdentifiers.remove(identifier);
-                    finishedMeasurements.put(identifier, runningMeasurements.get(identifier));
-                    report.appendFinding(identifier);
-                    runningMeasurements.remove(identifier);
+                    LOGGER.info("Found significant difference for {} in comparison to {} - Target: {}", task.getIdentifier1(), task.getIdentifier2(), getTargetName());
+                    subtaskIdentifiers.remove(task.getIdentifier2());
+                    finishedMeasurements.put(task.getIdentifier2(), runningMeasurements.get(task.getIdentifier2()));
+                    report.appendFinding(task.getIdentifier1() + " vs " + task.getIdentifier2());
+                    runningMeasurements.remove(task.getIdentifier2());
                     break;
                 case 13:
-                    LOGGER.info("Continuing - F1A for {} - Target: {}", identifier, getTargetName());
+                    LOGGER.info("Continuing - F1A for {} in comparison to {} - Target: {}", task.getIdentifier1(), task.getIdentifier2(), getTargetName());
                     break;
                 case 14:
-                    LOGGER.info("Continuing - No difference for {} - Target: {}", identifier, getTargetName());
+                    LOGGER.info("Continuing - No difference for {} in comparison to {} - Target: {}", task.getIdentifier1(), task.getIdentifier2(), getTargetName());
                     break;
                 default:
-                    LOGGER.error("R Script failed - status code {} - Target: {}", rOutputMap.get(identifier), getTargetName());
+                    LOGGER.error("R Script failed - status code {} - Target: {}", task.getExitCode(), getTargetName());
             }
         }
     }
@@ -221,6 +242,16 @@ public abstract class EvaluationSubtask {
                 .filter(algo -> (!algo.name().contains("ANON") && !algo.name().contains("_NONE")))
                 .collect(Collectors.toList()));
         
+        //ensure config filter is also applied if necessary
+        if(!serverReport.getConfigProfileIdentifier().equals(DefaultConfigProfile.UNFILTERED.getIdentifier())) {
+            for(ConfigFilterProfile filterProfile: DefaultConfigProfile.getTls12ConfigProfiles()) {
+                if(filterProfile.getIdentifier().equals(serverReport.getConfigProfileIdentifier())) {
+                    ConfigFilter.applyFilterProfile(config, filterProfile.getConfigFilterTypes());
+                    break;
+                }
+            }
+        }
+        
         config.setDefaultClientSupportedCipherSuites(cipherSuite);
         config.setDefaultRunningMode(RunningModeType.CLIENT);
         config.getDefaultClientConnection().setHostname(targetIp);
@@ -231,7 +262,7 @@ public abstract class EvaluationSubtask {
         config.getDefaultClientConnection().setProxyDataPort(evaluationConfig.getProxyDataPort());
         config.getDefaultClientConnection().setTimeout(evaluationConfig.getTimeout());
         config.getDefaultClientConnection().setFirstTimeout(evaluationConfig.getTimeout());
-        config.getDefaultClientConnection().setConnectionTimeout(evaluationConfig.getTimeout());
+        config.getDefaultClientConnection().setConnectionTimeout(evaluationConfig.getTimeout() + 1000);
         if(evaluationConfig.isUseProxy()) {
             config.getDefaultClientConnection().setTransportHandlerType(TransportHandlerType.TCP_PROXY_TIMING);
         } else {
@@ -308,7 +339,7 @@ public abstract class EvaluationSubtask {
     }
     
     protected void prepareExecutor(WorkflowExecutor executor) {
-        if(evaluationConfig.isEphemeral()) {
+        if((evaluationConfig.isEphemeral() || evaluationConfig.isKillProcess()) && switchedToRestarting) {
             executor.setBeforeTransportPreInitCallback(parentTask.getRestartCallable());
         }
     }
@@ -318,6 +349,10 @@ public abstract class EvaluationSubtask {
         prepareExecutor(executor);
         executor.executeWorkflow();
         postExecutionCheck(state, executor);
+    }
+    
+    protected boolean isCompareAllVectorCombinations() {
+        return false;
     }
     
     protected abstract boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace);

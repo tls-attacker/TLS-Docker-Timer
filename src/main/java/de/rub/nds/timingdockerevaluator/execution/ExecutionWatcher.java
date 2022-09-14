@@ -23,6 +23,7 @@ public class ExecutionWatcher {
     private final List<String> failedToFindSubtask = new LinkedList<>();
     private final Map<String, List<String>> subtaskFindings = new HashMap<>();
     private final Map<String, List<String>> unapplicableSubtasks = new HashMap<>();
+    private final Map<String, List<String>> abortedSubtasks = new HashMap<>();
     private ExecutionWatcher() { 
     }
     
@@ -80,10 +81,15 @@ public class ExecutionWatcher {
         LOGGER.info("Failed to Handshake: {}", failedToHandshake.stream().collect(Collectors.joining(",")));
         LOGGER.info("Failed unexpected: {}", unexpectedFailure.stream().collect(Collectors.joining(",")));
         LOGGER.info("Failed to find any applicable subtask: {}", failedToFindSubtask.stream().collect(Collectors.joining(",")));
-        LOGGER.info("Unapplicable Subtasks:");
+        LOGGER.info("Failed Subtasks:");
         LOGGER.info("**********************");
         for(String subtaskName : unapplicableSubtasks.keySet()) {
-            LOGGER.info("Unapplicable subtask {}: {}", subtaskName, unapplicableSubtasks.get(subtaskName).stream().collect(Collectors.joining(",")));
+            LOGGER.info("Failed subtask {}: {}", subtaskName, unapplicableSubtasks.get(subtaskName).stream().collect(Collectors.joining(",")));
+        }
+        LOGGER.info("Aborted Subtasks:");
+        LOGGER.info("**********************");
+        for(String subtaskName : abortedSubtasks.keySet()) {
+            LOGGER.info("Aborted subtask {}: {}", subtaskName, abortedSubtasks.get(subtaskName).stream().collect(Collectors.joining(",")));
         }
         LOGGER.info("Findings:");
         LOGGER.info("*********");
@@ -106,8 +112,15 @@ public class ExecutionWatcher {
             if(!subtaskFindings.containsKey(subtaskReport.getTaskName())) {
                 subtaskFindings.put(subtaskReport.getTaskName(), new LinkedList<>());
             }
-            subtaskFindings.get(subtaskReport.getTaskName()).add(subtaskReport.getTargetName() + subtaskReport.getWithDifference().stream().collect(Collectors.joining("-")));
+            subtaskFindings.get(subtaskReport.getTaskName()).add(subtaskReport.getTargetName() + subtaskReport.getWithDifference().stream().collect(Collectors.joining("++")));
         }
+    }
+    
+    public synchronized void abortedSubtask(String subtaskName, String targetName) {
+        if(!abortedSubtasks.containsKey(subtaskName)) {
+            abortedSubtasks.put(subtaskName, new LinkedList<>());
+        }
+        abortedSubtasks.get(subtaskName).add(targetName);
     }
     
     private void printProgress() {

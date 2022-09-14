@@ -68,6 +68,9 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-ephemeralContainers","-e"}, description = "Server containers are restarted before each new handshake")
     private boolean ephemeral = false;
     
+    @Parameter(names = {"-killProcess","-k"}, description = "Kill and restart the server process inside the docker container for each handshake")
+    private boolean killProcess = false;
+    
     public String getSpecificLibrary() {
         return specificLibrary;
     }
@@ -238,5 +241,13 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setEphemeral(boolean ephemeral) {
         this.ephemeral = ephemeral;
+    }
+
+    public boolean isKillProcess() {
+        return killProcess;
+    }
+
+    public void setKillProcess(boolean killProcess) {
+        this.killProcess = killProcess;
     }
 }
