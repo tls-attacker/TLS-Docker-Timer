@@ -58,7 +58,7 @@ public class RScriptManager {
     private void prepareFilesToCompareToBaseline(String subtaskName, String targetName, String identifier) {
         if(!baselineIdentifier.equals(identifier)) {
                 String filePath = getOutputFolder() + "/" + targetName + "/" + subtaskName + "/" + baselineIdentifier + "vs" + identifier + ".csv";
-                vectorEvaluationTasks.add(new VectorEvaluationTask(filePath, baselineIdentifier, identifier));
+                vectorEvaluationTasks.add(new VectorEvaluationTask(baselineIdentifier, identifier, filePath));
                 writeComparisonFile(filePath, measurements.get(baselineIdentifier), measurements.get(identifier));
         }
     }

@@ -148,7 +148,7 @@ public class Main {
         if (evaluationConfig.getSpecificVersion() != null) {
             matchesVersionFilter = Arrays.asList(evaluationConfig.getSpecificVersion().split(",")).stream().anyMatch(version.toLowerCase()::equals);
         } else if (evaluationConfig.getBaseVersion() != null) {
-            matchesVersionFilter = Arrays.asList(evaluationConfig.getBaseVersion().split(",")).stream().anyMatch(version.toLowerCase()::contains);
+            matchesVersionFilter = Arrays.asList(evaluationConfig.getBaseVersion().split(",")).stream().anyMatch(version.toLowerCase()::startsWith);
         }
         return role.equals("server") && matchesLibraryFilter && matchesVersionFilter;
     }

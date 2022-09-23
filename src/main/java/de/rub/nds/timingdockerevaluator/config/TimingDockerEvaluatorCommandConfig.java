@@ -71,6 +71,9 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-killProcess","-k"}, description = "Kill and restart the server process inside the docker container for each handshake")
     private boolean killProcess = false;
     
+    @Parameter(names = {"-additionalParameter","-a"}, description = "Additional parameter for the server inside the docker container")
+    private String additionalParameter = null;
+    
     public String getSpecificLibrary() {
         return specificLibrary;
     }
@@ -249,5 +252,13 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setKillProcess(boolean killProcess) {
         this.killProcess = killProcess;
+    }
+
+    public String getAdditionalParameter() {
+        return additionalParameter;
+    }
+
+    public void setAdditionalParameter(String additionalParameter) {
+        this.additionalParameter = additionalParameter;
     }
 }
