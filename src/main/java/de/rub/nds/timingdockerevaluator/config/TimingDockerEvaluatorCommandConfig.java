@@ -4,6 +4,14 @@ package de.rub.nds.timingdockerevaluator.config;
 import com.beust.jcommander.Parameter;
 
 public class TimingDockerEvaluatorCommandConfig {
+
+    public boolean isKeepContainer() {
+        return keepContainer;
+    }
+
+    public void setKeepContainer(boolean keepContainer) {
+        this.keepContainer = keepContainer;
+    }
    
     @Parameter(names = "-i", description = "Number of measurements per step")
     private int measurementsPerStep = 10000;
@@ -73,6 +81,15 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-additionalParameter","-a"}, description = "Additional parameter for the server inside the docker container")
     private String additionalParameter = null;
+    
+    @Parameter(names = {"-keepContainer"}, description = "Do not stop and remove the container")
+    private boolean keepContainer = false;
+    
+    @Parameter(names = {"-csvInput"}, description = "Look for result csv's in the specified directory")
+    private String csvInput = null;
+    
+    @Parameter(names = {"-runs"}, description = "Test determined targets multiple times (possibly in parallel)")
+    private int runs = 1;
     
     public String getSpecificLibrary() {
         return specificLibrary;
@@ -260,5 +277,25 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setAdditionalParameter(String additionalParameter) {
         this.additionalParameter = additionalParameter;
+    }
+
+    public String getCsvInput() {
+        return csvInput;
+    }
+
+    public void setCsvInput(String csvInput) {
+        this.csvInput = csvInput;
+    }
+    
+    public boolean isAnalyzeOnly() {
+        return csvInput != null;
+    }
+
+    public int getRuns() {
+        return runs;
+    }
+
+    public void setRuns(int runs) {
+        this.runs = runs;
     }
 }

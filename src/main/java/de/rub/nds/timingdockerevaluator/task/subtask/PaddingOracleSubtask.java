@@ -31,7 +31,7 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
     List<PaddingVector> vectors;
 
     public PaddingOracleSubtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
-        super("PaddingOracle", targetName, port, ip, evaluationConfig, parentTask);
+        super(SubtaskNames.PADDING_ORACLE.getCamelCaseName(), targetName, port, ip, evaluationConfig, parentTask);
     }
 
     @Override

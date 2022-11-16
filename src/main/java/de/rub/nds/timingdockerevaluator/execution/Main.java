@@ -30,6 +30,10 @@ public class Main {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final DockerClient DOCKER = DockerClientManager.getDockerClient();
     private static TimingDockerEvaluatorCommandConfig evaluationConfig;
+    
+    private static final String PO_PATH= "PaddingOracle";
+    private static final String BB_PATH = "Bleichenbacher";
+    private static final String LUCKY13_PATH = "Lucky13";
 
     public static void main(String args[]) {
         evaluationConfig = new TimingDockerEvaluatorCommandConfig();
@@ -45,6 +49,15 @@ public class Main {
             LOGGER.error(ex);
             return;
         }
+        
+        if(evaluationConfig.isAnalyzeOnly()) {
+            analyzeGivenResults();
+        } else {
+            measureTask(); 
+        }
+    }
+
+    protected static void measureTask() {
         checkRStatus();
         logConfiguration();
 
@@ -62,6 +75,11 @@ public class Main {
         } catch (InterruptedException ex) {
             LOGGER.error(ex);
         }
+    }
+    
+    protected static void analyzeGivenResults() {
+        checkRStatus();
+        RAnalyzer.analyzeGivenCSVs(evaluationConfig);
     }
 
     private static void logConfiguration() {
@@ -102,14 +120,19 @@ public class Main {
         LOGGER.info("Found {} applicable server images", images.size());
         LOGGER.info("Libraries: {}", images.stream().map(image -> image.getLabels().get(TlsImageLabels.IMPLEMENTATION.getLabelName())).distinct().collect(Collectors.joining(",")));
         LOGGER.info("Versions: {}", images.stream().map(image -> image.getLabels().get(TlsImageLabels.VERSION.getLabelName())).distinct().collect(Collectors.joining(",")));
-        ExecutionWatcher.getReference().setTasks(images.size());
+        LOGGER.info("Will perform {} runs for each image", evaluationConfig.getRuns());
+        ExecutionWatcher.getReference().setTasks(images.size() * evaluationConfig.getRuns());
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(evaluationConfig.getThreads());
         if (!evaluationConfig.isDryRun()) {
             for (Image image : images) {
-                executor.execute(() -> {
-                    EvaluationTask task = new EvaluationTask(image, evaluationConfig);
+                for(int i = 0; i < evaluationConfig.getRuns(); i++) {
+                    final int currentValue = i;
+                   executor.execute(() -> {
+                    EvaluationTask task = new EvaluationTask(image, evaluationConfig, currentValue);
                     task.execute();
-                });
+                }); 
+                }
+                
             }
         }
         return executor;
@@ -128,6 +151,9 @@ public class Main {
         List<Image> allAvailableImages = DockerTlsManagerFactory.getAllImages();
         images = allAvailableImages.parallelStream().filter(image -> imageSelection(image, null)).collect(Collectors.toList());
         images.addAll(allAvailableImages.stream().filter(image -> imageSelection(image, images)).collect(Collectors.toList()));
+        for(int i = 1; i < evaluationConfig.getRuns(); i++) {
+            
+        }
     }
 
     private static boolean imageSelection(Image image, List<Image> presentImages) {

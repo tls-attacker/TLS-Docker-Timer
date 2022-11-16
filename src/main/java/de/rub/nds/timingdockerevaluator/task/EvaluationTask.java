@@ -38,11 +38,20 @@ import java.util.function.Function;
 
 public class EvaluationTask extends TimingDockerTask {
 
+    public int getRunIteration() {
+        return runIteration;
+    }
+
+    public void setRunIteration(int runIteration) {
+        this.runIteration = runIteration;
+    }
+
     private static final Logger LOGGER = LogManager.getLogger();
     public static final String CONTAINER_NAME_PREFIX = "timingEval-";
     private static final DockerClient DOCKER = DockerClientManager.getDockerClient();
 
     private int targetPort;
+    private int runIteration;
     private String targetIp;
 
     private final String targetName;
@@ -53,11 +62,12 @@ public class EvaluationTask extends TimingDockerTask {
 
     List<EvaluationSubtask> subtasks = new LinkedList<>();
 
-    public EvaluationTask(Image image, TimingDockerEvaluatorCommandConfig evaluationConfig) {
+    public EvaluationTask(Image image, TimingDockerEvaluatorCommandConfig evaluationConfig, int runIteration) {
         super(evaluationConfig);
         this.implementation = TlsImplementationType.fromString(image.getLabels().get(TlsImageLabels.IMPLEMENTATION.getLabelName()));
         this.version = image.getLabels().get(TlsImageLabels.VERSION.getLabelName());
         this.targetName = implementation.toString() + "-" + version;
+        this.runIteration = runIteration;
     }
     
     public EvaluationTask(TimingDockerEvaluatorCommandConfig evaluationConfig) {
@@ -71,11 +81,11 @@ public class EvaluationTask extends TimingDockerTask {
         LOGGER.info("Starting tests for {}", targetName);
         long startTimestamp = System.currentTimeMillis();
         try {
-            if(evaluationConfig.isManagedTarget()) {
+            if(getEvaluationConfig().isManagedTarget()) {
                 dockerInstance = prepareNewDockerContainer();
                 waitForContainer();
                 retrieveContainerIp(dockerInstance);
-                if(evaluationConfig.isUseHostNetwork()) {
+                if(getEvaluationConfig().isUseHostNetwork()) {
                     int oldPort = targetPort;
                     dockerInstance.updateInstancePort();
                     targetPort = dockerInstance.getHostInfo().getPort();
@@ -83,8 +93,8 @@ public class EvaluationTask extends TimingDockerTask {
                 }
                 testTarget();
             } else {
-                targetIp = evaluationConfig.getSpecificIp();
-                targetPort = evaluationConfig.getSpecificPort();
+                targetIp = getEvaluationConfig().getSpecificIp();
+                targetPort = getEvaluationConfig().getSpecificPort();
                 testTarget();
             }
         } catch (ContainerFailedException ex) {
@@ -103,7 +113,7 @@ public class EvaluationTask extends TimingDockerTask {
             LOGGER.error("Evaluation failed unexpected for {}", targetName, ex);
             ExecutionWatcher.getReference().failedUnexpected(targetName);
         } finally {
-            if(evaluationConfig.isManagedTarget()) {
+            if(getEvaluationConfig().isManagedTarget() && !getEvaluationConfig().isKeepContainer()) {
                 stopContainter(dockerInstance);
             }
         }
@@ -112,7 +122,7 @@ public class EvaluationTask extends TimingDockerTask {
     }
 
     private DockerTlsServerInstance prepareNewDockerContainer() {
-        DockerTlsServerInstance newDockerInstance = createDockerInstance(implementation, version, evaluationConfig.isUseHostNetwork());
+        DockerTlsServerInstance newDockerInstance = createDockerInstance(implementation, version, getEvaluationConfig().isUseHostNetwork());
         targetPort = newDockerInstance.getHostInfo().getPort();
         newDockerInstance.start();
         return newDockerInstance;
@@ -135,7 +145,7 @@ public class EvaluationTask extends TimingDockerTask {
 
     public void retrieveContainerIp(DockerTlsServerInstance dockerInstance) throws ContainerFailedException {
         InspectContainerResponse containerInspectResponse = DOCKER.inspectContainerCmd(dockerInstance.getId()).exec();
-        if(evaluationConfig.isUseHostNetwork()) {
+        if(getEvaluationConfig().isUseHostNetwork()) {
             targetIp = "localhost";
         } else {
             targetIp = containerInspectResponse.getNetworkSettings().getNetworks().get("bridge").getIpAddress();
@@ -151,7 +161,7 @@ public class EvaluationTask extends TimingDockerTask {
             subtask.adjustScope(serverReport);
             EvaluationSubtaskReport report = subtask.evaluate();
             ExecutionWatcher.getReference().finishedSubtask(report);
-            SubtaskReportWriter.writeReport(report);
+            SubtaskReportWriter.writeReport(report, getRunIteration(), getEvaluationConfig().getRuns() > 1);
             if(report.isFailed()) {
                 ExecutionWatcher.getReference().abortedSubtask(report.getTaskName(), report.getTargetName());
             }
@@ -162,14 +172,14 @@ public class EvaluationTask extends TimingDockerTask {
         ClientDelegate clientDelegate = new ClientDelegate();
         clientDelegate.setHost(targetIp + ":" + targetPort);
         ServerScannerConfig scannerConfig = new ServerScannerConfig(new GeneralDelegate(), clientDelegate);
-        scannerConfig.setTimeout(evaluationConfig.getTimeout());
+        scannerConfig.setTimeout(getEvaluationConfig().getTimeout());
         scannerConfig.setProbes(TlsProbeType.PROTOCOL_VERSION, TlsProbeType.CIPHER_SUITE);
         scannerConfig.setOverallThreads(1);
         scannerConfig.setParallelProbes(1);
         scannerConfig.setConfigSearchCooldown(true);
 
         ParallelExecutor parallelExecutor = new ParallelExecutor(1, 2);
-        if(evaluationConfig.isEphemeral()) {
+        if(getEvaluationConfig().isEphemeral()) {
             parallelExecutor.setDefaultBeforeTransportPreInitCallback(getRestartCallable());
         }
         
@@ -179,9 +189,9 @@ public class EvaluationTask extends TimingDockerTask {
 
     public Function<State, Integer> getRestartCallable() {
         return (State state) -> {
-            if(evaluationConfig.isEphemeral()) {
+            if(getEvaluationConfig().isEphemeral()) {
                 restartContainer();
-            } else if(evaluationConfig.isKillProcess()) {
+            } else if(getEvaluationConfig().isKillProcess()) {
                 restartServer();
             }
             return 0;};
@@ -203,13 +213,13 @@ public class EvaluationTask extends TimingDockerTask {
     public void buildTaskList() throws FailedToHandshakeException, NoSubtaskApplicableException {
         if (serverReport.getSpeaksProtocol() != null && serverReport.getSpeaksProtocol() == true) {
             EvaluationSubtask[] implementedSubtasks = {
-                new BleichenbacherSubtask(targetName, targetPort, targetIp, evaluationConfig, this),
-                new PaddingOracleSubtask(targetName, targetPort, targetIp, evaluationConfig, this),
-                new Lucky13Subtask(targetName, targetPort, targetIp, evaluationConfig, this)
+                new BleichenbacherSubtask(targetName, targetPort, targetIp, getEvaluationConfig(), this),
+                new PaddingOracleSubtask(targetName, targetPort, targetIp, getEvaluationConfig(), this),
+                new Lucky13Subtask(targetName, targetPort, targetIp, getEvaluationConfig(), this)
             };
 
             for (EvaluationSubtask plannedSubtask : implementedSubtasks) {
-                if (evaluationConfig.getSpecificSubtask() == null || plannedSubtask.getSubtaskName().equalsIgnoreCase(evaluationConfig.getSpecificSubtask())) {
+                if (getEvaluationConfig().getSpecificSubtask() == null || plannedSubtask.getSubtaskName().equalsIgnoreCase(getEvaluationConfig().getSpecificSubtask())) {
                     plannedSubtask.adjustScope(serverReport);
                     if (plannedSubtask.isApplicable()) {
                         subtasks.add(plannedSubtask);

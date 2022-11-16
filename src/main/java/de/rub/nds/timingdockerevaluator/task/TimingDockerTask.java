@@ -9,13 +9,18 @@ import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.docker.DockerTlsManagerFactory;
 import de.rub.nds.tls.subject.docker.DockerTlsServerInstance;
 import java.util.LinkedList;
+import org.apache.commons.lang.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class TimingDockerTask {
 
+    public TimingDockerEvaluatorCommandConfig getEvaluationConfig() {
+        return evaluationConfig;
+    }
+
     private static final Logger LOGGER = LogManager.getLogger();
-    protected final TimingDockerEvaluatorCommandConfig evaluationConfig;
+    private final TimingDockerEvaluatorCommandConfig evaluationConfig;
 
     public TimingDockerTask(TimingDockerEvaluatorCommandConfig evaluationConfig) {
         this.evaluationConfig = evaluationConfig;
@@ -23,7 +28,8 @@ public abstract class TimingDockerTask {
 
     public void stopContainter(DockerTlsServerInstance dockerInstance) {
         try {
-            dockerInstance.stop();
+            dockerInstance.kill();
+            dockerInstance.remove();
         } catch (NotModifiedException exception) {
             LOGGER.warn("Failed to stop container for {} - was already stopped or never started!", dockerInstance.getImage().getId());
         }
@@ -38,7 +44,7 @@ public abstract class TimingDockerTask {
 
     protected DockerTlsServerInstance createDockerInstance(TlsImplementationType implementation, String version, boolean onHostNetwork) {
         try {
-            String containerName = CONTAINER_NAME_PREFIX + (implementation + version).replace(":", "-");
+            String containerName = CONTAINER_NAME_PREFIX + (implementation + version).replace(":", "-") + "-" + RandomStringUtils.randomAlphanumeric(6);
             DockerTlsManagerFactory.TlsServerInstanceBuilder targetInstanceBuilder = DockerTlsManagerFactory.getTlsServerBuilder(implementation, version);
             targetInstanceBuilder = targetInstanceBuilder.containerName(containerName).port(4433).hostname("0.0.0.0").ip("0.0.0.0").parallelize(true);
             if (onHostNetwork) {
@@ -57,16 +63,11 @@ public abstract class TimingDockerTask {
     }
 
     private void addAdditionalParameters(TlsImplementationType implementation, DockerTlsManagerFactory.TlsServerInstanceBuilder builder) {
-        if (evaluationConfig.getAdditionalParameter() != null) {
+        if (getEvaluationConfig().getAdditionalParameter() != null) {
             // arbitrary commands, such as 'auth_mode=none' for old mbedtls versions
-            builder.additionalParameters(evaluationConfig.getAdditionalParameter());
-        } else {
-            if (implementation == TlsImplementationType.BOTAN) {
-                builder.additionalParameters("--policy=/cert/policies/botan-policy.txt");
-            } else if (implementation == TlsImplementationType.WOLFSSL) {
-                //loop indefinetly
-                builder.additionalParameters("-i");
-            }
+            // or "--policy=/cert/policies/botan-policy.txt" for botan
+            // or "-i" for wolfssl
+            builder.additionalParameters(getEvaluationConfig().getAdditionalParameter());
         }
     }
 }

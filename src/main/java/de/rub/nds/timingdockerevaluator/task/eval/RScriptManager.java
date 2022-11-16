@@ -1,5 +1,6 @@
 package de.rub.nds.timingdockerevaluator.task.eval;
 
+import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -24,11 +25,13 @@ public class RScriptManager {
     private final Map<String, List<Long>> measurements;
     private final List<VectorEvaluationTask> vectorEvaluationTasks = new LinkedList<>();
     private final boolean compareAllCombinations;
+    private EvaluationTask parentTask;
     
-    public RScriptManager(String baselineIdentifier, Map<String, List<Long>> measurements, boolean compareAllCombinations) {
+    public RScriptManager(String baselineIdentifier, Map<String, List<Long>> measurements, boolean compareAllCombinations, EvaluationTask parentTask) {
         this.baselineIdentifier = baselineIdentifier;
         this.measurements = measurements;
         this.compareAllCombinations = compareAllCombinations;
+        this.parentTask = parentTask;
     }
     
     public void prepareFiles(String subtaskName, String targetName) {
@@ -46,7 +49,7 @@ public class RScriptManager {
     
     private void prepareFilesToCompareAllCombinations(String subtaskName, String targetName, String identifier) {
         for(String secondIdentifier: measurements.keySet()) {
-            String filePath = getOutputFolder() + "/" + targetName + "/" + subtaskName + "/" + identifier + "vs" + secondIdentifier + ".csv";
+            String filePath = getBaseResultPath(targetName, subtaskName) + identifier + "vs" + secondIdentifier + ".csv";
             VectorEvaluationTask newTask = new VectorEvaluationTask(identifier, secondIdentifier, filePath);
             if(!secondIdentifier.equals(identifier) && !vectorEvaluationTasks.stream().anyMatch(newTask::isSamePlan)) {
                 vectorEvaluationTasks.add(newTask);
@@ -57,10 +60,14 @@ public class RScriptManager {
     
     private void prepareFilesToCompareToBaseline(String subtaskName, String targetName, String identifier) {
         if(!baselineIdentifier.equals(identifier)) {
-                String filePath = getOutputFolder() + "/" + targetName + "/" + subtaskName + "/" + baselineIdentifier + "vs" + identifier + ".csv";
+                String filePath = getBaseResultPath(targetName, subtaskName) + baselineIdentifier + "vs" + identifier + ".csv";
                 vectorEvaluationTasks.add(new VectorEvaluationTask(baselineIdentifier, identifier, filePath));
                 writeComparisonFile(filePath, measurements.get(baselineIdentifier), measurements.get(identifier));
         }
+    }
+
+    private String getBaseResultPath(String targetName, String subtaskName) {
+        return getOutputFolder() + ((parentTask.getEvaluationConfig().getRuns() > 1)? "/Iteration-" + parentTask.getRunIteration() + "/": "") + "/" + targetName + "/" + subtaskName + "/";
     }
 
     private void writeComparisonFile(String filePath, List<Long> measurementsVector1, List<Long> measurementsVector2) {
@@ -99,15 +106,25 @@ public class RScriptManager {
         for(VectorEvaluationTask taskToExecute:  executedTasks) {
             try {
                 String file = taskToExecute.getFilePath();
-                String[] commandArray = new String[]{"Rscript", "evaluateMeasurements.R", file, file + TIME_FORMAT.format(LocalDateTime.now()) + ".RDATA", "BASELINE", "MODIFIED", Integer.toString(n)};
-                Process rProcess = Runtime.getRuntime().exec(commandArray);
-                int exitCode = rProcess.waitFor();
+                int exitCode = testSingleFileWithR(file, n);
                 taskToExecute.setExitCode(exitCode);
             } catch (IOException | InterruptedException ex) {
                 LOGGER.error("Failed to run RScript", ex);
             }
         }
         return executedTasks;
+    }
+
+    public static int testSingleFileWithR(String file, int n) throws IOException, InterruptedException {
+        return testDetailedWithR(file, TIME_FORMAT.format(LocalDateTime.now()), n);
+    }
+    
+    public static int testDetailedWithR(String file, String rDataSpecifier, int n) throws IOException, InterruptedException {
+        String rDataPath = file + rDataSpecifier + ".RDATA";
+        String[] commandArray = new String[]{"Rscript", "evaluateMeasurements.R", file, rDataPath, "BASELINE", "MODIFIED", Integer.toString(n)};
+        Process rProcess = Runtime.getRuntime().exec(commandArray);
+        int exitCode = rProcess.waitFor();
+        return exitCode;
     }
     
     public static boolean rScriptGiven() {

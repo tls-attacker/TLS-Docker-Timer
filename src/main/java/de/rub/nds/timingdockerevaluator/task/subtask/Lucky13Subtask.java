@@ -29,7 +29,7 @@ public class Lucky13Subtask extends EvaluationSubtask {
     
     
     public Lucky13Subtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
-        super("Lucky13", targetName, port, ip, evaluationConfig, parentTask);
+        super(SubtaskNames.LUCKY13.getCamelCaseName(), targetName, port, ip, evaluationConfig, parentTask);
     }
     
     @Override

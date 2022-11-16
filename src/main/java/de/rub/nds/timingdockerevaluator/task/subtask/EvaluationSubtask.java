@@ -142,7 +142,7 @@ public abstract class EvaluationSubtask {
             }
             measurementsDone += evaluationConfig.getMeasurementsPerStep();
             LOGGER.info("Subtask {} completed {} measurements for {}", getSubtaskName(), measurementsDone, getTargetName());
-            RScriptManager scriptManager = new RScriptManager(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations());
+            RScriptManager scriptManager = new RScriptManager(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations(), parentTask);
             scriptManager.prepareFiles(getSubtaskName(), getTargetName());
             
             if(!evaluationConfig.isSkipR()) {

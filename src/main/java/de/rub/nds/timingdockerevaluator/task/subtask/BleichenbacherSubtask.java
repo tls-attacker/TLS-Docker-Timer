@@ -38,7 +38,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
     private List<Pkcs1Vector> vectors;
     
     public BleichenbacherSubtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
-        super("Bleichenbacher", targetName, port, ip, evaluationConfig, parentTask);
+        super(SubtaskNames.BLEICHENBACHER.getCamelCaseName(), targetName, port, ip, evaluationConfig, parentTask);
     }
 
     @Override
