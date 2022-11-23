@@ -9,6 +9,8 @@ import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.docker.DockerTlsManagerFactory;
 import de.rub.nds.tls.subject.docker.DockerTlsServerInstance;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.commons.lang.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -53,7 +55,7 @@ public abstract class TimingDockerTask {
                     return hostConfig;
                 });
             }
-            addAdditionalParameters(implementation, targetInstanceBuilder);
+            addAdditionalParameters(implementation, version, targetInstanceBuilder);
             DockerTlsServerInstance targetInstance = targetInstanceBuilder.build();
             return targetInstance;
         } catch (DockerException | InterruptedException ex) {
@@ -62,12 +64,34 @@ public abstract class TimingDockerTask {
         }
     }
 
-    private void addAdditionalParameters(TlsImplementationType implementation, DockerTlsManagerFactory.TlsServerInstanceBuilder builder) {
+    private void addAdditionalParameters(TlsImplementationType implementation, String version, DockerTlsManagerFactory.TlsServerInstanceBuilder builder) {
+        List<String> additionalParameters = new LinkedList<>();
         if (getEvaluationConfig().getAdditionalParameter() != null) {
-            // arbitrary commands, such as 'auth_mode=none' for old mbedtls versions
-            // or "--policy=/cert/policies/botan-policy.txt" for botan
-            // or "-i" for wolfssl
-            builder.additionalParameters(getEvaluationConfig().getAdditionalParameter());
+            additionalParameters.add(getEvaluationConfig().getAdditionalParameter());
+        }
+        if(!getEvaluationConfig().isNoAutoFlags()) {
+            
+            switch(implementation) {
+                case WOLFSSL:
+                    // loop server (TODO: check if known in all versions)
+                    additionalParameters.add("-i");
+                    break;
+                case BOTAN:
+                    // allow RSA KEX
+                    if(version.startsWith("2.") || version.equals("1.11.31") || version.equals("1.11.32") || version.equals("1.11.33") || version.equals("1.11.34")) {
+                       additionalParameters.add("--policy=/cert/policies/botan-policy.txt"); 
+                    }
+                    break;
+                case MBEDTLS:
+                    // do not enforce client auth
+                    // (ignored or known in all versions)
+                    additionalParameters.add("auth_mode=none");
+                    break;
+            }
+        }
+        
+        if(!additionalParameters.isEmpty()) {
+            builder.additionalParameters(additionalParameters.stream().collect(Collectors.joining(" ")));
         }
     }
 }

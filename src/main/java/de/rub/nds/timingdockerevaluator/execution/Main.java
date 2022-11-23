@@ -100,6 +100,10 @@ public class Main {
         } else if (evaluationConfig.getBaseVersion() != null && evaluationConfig.getSpecificVersion() != null) {
             throw new ParameterException("Both specific and base version(s) specified.");
         }
+        
+        if(evaluationConfig.getAdditionalParameter() != null && evaluationConfig.isNoAutoFlags()) {
+            LOGGER.warn("Will set additional parameters as well as automatically chosen flags. Set -noAutoFlags to avoid this.");
+        }
     }
 
     private static ExecutorService getRemoteExecutor() {

@@ -1,0 +1,5 @@
+allow_tls10 = true
+allow_tls11 = true
+allow_tls12 = true
+ciphers = AES-256 AES-128
+key_exchange_methods = ECDH DH RSA

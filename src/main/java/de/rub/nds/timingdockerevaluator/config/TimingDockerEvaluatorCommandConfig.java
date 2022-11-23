@@ -2,6 +2,7 @@
 package de.rub.nds.timingdockerevaluator.config;
 
 import com.beust.jcommander.Parameter;
+import com.beust.jcommander.Parameters;
 
 public class TimingDockerEvaluatorCommandConfig {
 
@@ -90,6 +91,9 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-runs"}, description = "Test determined targets multiple times (possibly in parallel)")
     private int runs = 1;
+    
+    @Parameter(names = {"-noAutoFlags"}, description = "Do not set additional parameters for libraries where required")
+    private boolean noAutoFlags = false;
     
     public String getSpecificLibrary() {
         return specificLibrary;
@@ -297,5 +301,13 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setRuns(int runs) {
         this.runs = runs;
+    }
+
+    public boolean isNoAutoFlags() {
+        return noAutoFlags;
+    }
+
+    public void setNoAutoFlags(boolean noAutoFlags) {
+        this.noAutoFlags = noAutoFlags;
     }
 }
