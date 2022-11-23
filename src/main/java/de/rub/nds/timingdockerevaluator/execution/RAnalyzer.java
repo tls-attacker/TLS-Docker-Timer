@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -31,6 +32,26 @@ public class RAnalyzer {
     
     private static final org.apache.logging.log4j.Logger LOGGER = LogManager.getLogger();
     public static void analyzeGivenCSVs(TimingDockerEvaluatorCommandConfig evaluationConfig) {
+        provideRResults(evaluationConfig);
+        printResults(evaluationConfig);
+    }
+
+    private static void printResults(TimingDockerEvaluatorCommandConfig evaluationConfig) throws RuntimeException {
+        List<File> additionalRDataFiles = findRDataAdditionalFiles(evaluationConfig);
+        Map<LibraryInstance, RDataFileGroup> libraryRDataMap = buildLibraryAdditionalDataMap(additionalRDataFiles);
+        Set<String> vectorNames = new HashSet<>();
+        for(LibraryInstance listedInstance : libraryRDataMap.keySet()) {
+            vectorNames.addAll(libraryRDataMap.get(listedInstance).getAdditionalRData().stream().map(RAdditionalOutput::getVectorName).collect(Collectors.toList()));
+        } 
+        List<String> sortedVectorNames = new LinkedList<>();
+        sortedVectorNames.addAll(vectorNames);
+        Collections.sort(sortedVectorNames);
+        printResultData(sortedVectorNames, libraryRDataMap);
+        printF1AData(sortedVectorNames, libraryRDataMap);
+        printDecisionCounters(sortedVectorNames, libraryRDataMap);
+    }
+
+    private static void provideRResults(TimingDockerEvaluatorCommandConfig evaluationConfig) throws RuntimeException {
         List<File> csvFiles = new LinkedList<>();
         findCSVs(csvFiles, evaluationConfig);
         LOGGER.info("Found {} CSVs", csvFiles.size());
@@ -39,22 +60,11 @@ public class RAnalyzer {
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(evaluationConfig.getThreads());
         List<RAnalyzerTask> libraryTasks = new LinkedList<>();
         computeROutputs(libraryResultsMap, evaluationConfig, libraryTasks, executor);
-        List<File> additionalRDataFiles = findRDataAdditionalFiles(evaluationConfig);
-        Map<LibraryInstance, RDataFileGroup> libraryRDataMap = buildLibraryAdditionalDataMap(additionalRDataFiles);
-        Set<String> vectorNames = new HashSet<>();
-        for(LibraryInstance listedInstance : libraryRDataMap.keySet()) {
-            vectorNames.addAll(libraryRDataMap.get(listedInstance).getAdditionalRData().stream().map(RAdditionalOutput::getVectorName).collect(Collectors.toList()));
-        } 
-        printResultData(vectorNames, libraryRDataMap);
-        printF1AData(vectorNames, libraryRDataMap);
-        printDecisionCounters(vectorNames, libraryRDataMap);
-        
-        
     }
 
-    private static void printDecisionCounters(Set<String> vectorNames, Map<LibraryInstance, RDataFileGroup> libraryRDataMap) {
+    private static void printDecisionCounters(List<String> sortedVectorNames, Map<LibraryInstance, RDataFileGroup> libraryRDataMap) {
         LOGGER.info("Biggest Differences for Decision in Quantiles:");
-        for(String listedVector: vectorNames) {
+        for(String listedVector: sortedVectorNames) {
             LOGGER.info("({})", listedVector);
             Map<Integer, Integer> counterMap = new HashMap<>();
             for(LibraryInstance listedInstance : libraryRDataMap.keySet()) {
@@ -67,26 +77,26 @@ public class RAnalyzer {
         }
     }
 
-    private static void printResultData(Set<String> vectorNames, Map<LibraryInstance, RDataFileGroup> libraryRDataMap) {
+    private static void printResultData(List<String> sortedVectorNames, Map<LibraryInstance, RDataFileGroup> libraryRDataMap) {
         LOGGER.info("Results:");
-        LOGGER.info("Library ; {}", vectorNames.stream().collect(Collectors.joining(" ; ")));
+        LOGGER.info("Library ; {}", sortedVectorNames.stream().collect(Collectors.joining(" ; ")));
         for(LibraryInstance listedInstance : libraryRDataMap.keySet()) {
             List<String> parts = new LinkedList<>();
             parts.add(listedInstance.getDockerName());
-            for(String listedVector: vectorNames) {
+            for(String listedVector: sortedVectorNames) {
                 parts.add(printPower(libraryRDataMap.get(listedInstance).getOutputForVectorName(listedVector)));
             }
             LOGGER.info("{}", parts.stream().collect(Collectors.joining(" ; ")));
         }
     }
 
-    private static void printF1AData(Set<String> vectorNames, Map<LibraryInstance, RDataFileGroup> libraryRDataMap) {
+    private static void printF1AData(List<String> sortedVectorNames, Map<LibraryInstance, RDataFileGroup> libraryRDataMap) {
         LOGGER.info("F1A: ");
-        LOGGER.info("Library ; {}", vectorNames.stream().collect(Collectors.joining(" ; ")));
+        LOGGER.info("Library ; {}", sortedVectorNames.stream().collect(Collectors.joining(" ; ")));
         for(LibraryInstance listedInstance : libraryRDataMap.keySet()) {
             List<String> parts = new LinkedList<>();
             parts.add(listedInstance.getDockerName());
-            for(String listedVector: vectorNames) {
+            for(String listedVector: sortedVectorNames) {
                 parts.add(printF1A(libraryRDataMap.get(listedInstance).getOutputForVectorName(listedVector)));
             }
             LOGGER.info("{}", parts.stream().collect(Collectors.joining(" ; ")));
