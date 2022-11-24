@@ -7,8 +7,12 @@ package de.rub.nds.timingdockerevaluator.util;
 import de.rub.nds.timingdockerevaluator.task.eval.RAdditionalOutput;
 import java.util.LinkedList;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
 
 public class RDataFileGroup {
+    
+    private static final org.apache.logging.log4j.Logger LOGGER = LogManager.getLogger();
+    
     private final LibraryInstance libraryInstance;
     
     private final List<RAdditionalOutput> additionalRData = new LinkedList<>();
@@ -30,12 +34,17 @@ public class RDataFileGroup {
     }
     
     public RAdditionalOutput getOutputForVectorName(String vectorName) {
+        RAdditionalOutput identifiedOutput = null;
         for(RAdditionalOutput listed: additionalRData) {
             if(listed.getVectorName().equals(vectorName)) {
-                return listed;
+                if(identifiedOutput == null) {
+                    identifiedOutput = listed;
+                } else {
+                    LOGGER.warn("Found multiple results for vector " + vectorName + " of library " + libraryInstance.getDockerName());
+                }
             }
         }
-        return null;
+        return identifiedOutput;
     }
     
 }

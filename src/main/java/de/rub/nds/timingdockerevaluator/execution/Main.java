@@ -78,8 +78,12 @@ public class Main {
     }
     
     protected static void analyzeGivenResults() {
-        checkRStatus();
-        RAnalyzer.analyzeGivenCSVs(evaluationConfig);
+        if(evaluationConfig.getCsvInput() != null) {
+            checkRStatus();
+            RAnalyzer.analyzeGivenCSVs(evaluationConfig);
+        } else {
+            RAnalyzer.printResults(evaluationConfig.getrAnalyzedInput());
+        }
     }
 
     private static void logConfiguration() {
@@ -103,6 +107,10 @@ public class Main {
         
         if(evaluationConfig.getAdditionalParameter() != null && evaluationConfig.isNoAutoFlags()) {
             LOGGER.warn("Will set additional parameters as well as automatically chosen flags. Set -noAutoFlags to avoid this.");
+        }
+        
+        if(evaluationConfig.getCsvInput() != null && evaluationConfig.getrAnalyzedInput() != null) {
+            throw new ParameterException("Both CSV input path and analyzed R results path set. Only set CSV path to run R and print results.");
         }
     }
 

@@ -31,13 +31,14 @@ import org.apache.logging.log4j.LogManager;
 public class RAnalyzer {
     
     private static final org.apache.logging.log4j.Logger LOGGER = LogManager.getLogger();
+    
     public static void analyzeGivenCSVs(TimingDockerEvaluatorCommandConfig evaluationConfig) {
         provideRResults(evaluationConfig);
-        printResults(evaluationConfig);
+        printResults(evaluationConfig.getCsvInput());
     }
 
-    private static void printResults(TimingDockerEvaluatorCommandConfig evaluationConfig) throws RuntimeException {
-        List<File> additionalRDataFiles = findRDataAdditionalFiles(evaluationConfig);
+    public static void printResults(String path) throws RuntimeException {
+        List<File> additionalRDataFiles = findRDataAdditionalFiles(path);
         Map<LibraryInstance, RDataFileGroup> libraryRDataMap = buildLibraryAdditionalDataMap(additionalRDataFiles);
         Set<String> vectorNames = new HashSet<>();
         for(LibraryInstance listedInstance : libraryRDataMap.keySet()) {
@@ -155,12 +156,12 @@ public class RAnalyzer {
         }
     }
     
-    protected static List<File> findRDataAdditionalFiles(TimingDockerEvaluatorCommandConfig evaluationConfig) throws RuntimeException {
+    protected static List<File> findRDataAdditionalFiles(String path) throws RuntimeException {
         List<File> rDataAdditionalFiles = new LinkedList<>();
         try {
-            rDataAdditionalFiles.addAll(Files.find(Paths.get(evaluationConfig.getCsvInput()), 999, (p, bfa) -> bfa.isRegularFile() && p.getFileName().toString().endsWith(".RDATA.add")).map(Path::toFile).collect(Collectors.toList()));
+            rDataAdditionalFiles.addAll(Files.find(Paths.get(path), 999, (p, bfa) -> bfa.isRegularFile() && p.getFileName().toString().endsWith(".RDATA.add")).map(Path::toFile).collect(Collectors.toList()));
         } catch (IOException ex) {
-            throw new RuntimeException("Provided path not found: " + evaluationConfig.getCsvInput());
+            throw new RuntimeException("Provided path not found: " + path);
         }
         return rDataAdditionalFiles;
     }

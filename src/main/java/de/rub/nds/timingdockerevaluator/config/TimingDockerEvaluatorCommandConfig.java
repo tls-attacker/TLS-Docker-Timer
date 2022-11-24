@@ -86,8 +86,11 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-keepContainer"}, description = "Do not stop and remove the container")
     private boolean keepContainer = false;
     
-    @Parameter(names = {"-csvInput"}, description = "Look for result csv's in the specified directory")
+    @Parameter(names = {"-csvInput"}, description = "Look for result csv's in the specified directory and provide R output")
     private String csvInput = null;
+    
+    @Parameter(names = {"-rAnalyzedInput"}, description = "Look for R results in the specified directory and print the results")
+    private String rAnalyzedInput = null;
     
     @Parameter(names = {"-runs"}, description = "Test determined targets multiple times (possibly in parallel)")
     private int runs = 1;
@@ -292,7 +295,7 @@ public class TimingDockerEvaluatorCommandConfig {
     }
     
     public boolean isAnalyzeOnly() {
-        return csvInput != null;
+        return csvInput != null || rAnalyzedInput != null;
     }
 
     public int getRuns() {
@@ -309,5 +312,13 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setNoAutoFlags(boolean noAutoFlags) {
         this.noAutoFlags = noAutoFlags;
+    }
+
+    public String getrAnalyzedInput() {
+        return rAnalyzedInput;
+    }
+
+    public void setrAnalyzedInput(String rAnalyzedInput) {
+        this.rAnalyzedInput = rAnalyzedInput;
     }
 }
