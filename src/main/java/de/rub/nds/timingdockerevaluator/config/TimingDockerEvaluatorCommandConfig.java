@@ -98,6 +98,9 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-noAutoFlags"}, description = "Do not set additional parameters for libraries where required")
     private boolean noAutoFlags = false;
     
+    @Parameter(names = {"-printToConsole"}, description = "Print directly to console")
+    private boolean printToConsole = false;
+    
     public String getSpecificLibrary() {
         return specificLibrary;
     }
@@ -320,5 +323,13 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setrAnalyzedInput(String rAnalyzedInput) {
         this.rAnalyzedInput = rAnalyzedInput;
+    }
+
+    public boolean isPrintToConsole() {
+        return printToConsole;
+    }
+
+    public void setPrintToConsole(boolean printToConsole) {
+        this.printToConsole = printToConsole;
     }
 }

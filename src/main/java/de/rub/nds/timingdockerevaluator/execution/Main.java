@@ -82,7 +82,7 @@ public class Main {
             checkRStatus();
             RAnalyzer.analyzeGivenCSVs(evaluationConfig);
         } else {
-            RAnalyzer.printResults(evaluationConfig.getrAnalyzedInput());
+            RAnalyzer.printResults(evaluationConfig.getrAnalyzedInput(), evaluationConfig);
         }
     }
 

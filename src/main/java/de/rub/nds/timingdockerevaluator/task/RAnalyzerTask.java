@@ -1,12 +1,8 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package de.rub.nds.timingdockerevaluator.task;
 
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.eval.RScriptManager;
-import de.rub.nds.timingdockerevaluator.util.CsvFileGroup;
+import de.rub.nds.timingdockerevaluator.util.LibraryInstance;
 import java.io.File;
 import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
@@ -15,49 +11,38 @@ import org.apache.logging.log4j.Logger;
 public class RAnalyzerTask {
     private static final Logger LOGGER = LogManager.getLogger();
     
-    private final CsvFileGroup resultFileGroup;
     private final TimingDockerEvaluatorCommandConfig evaluationConfig;
+    
+    private final File singleCsvFile;
+    private final LibraryInstance assignedLibraryInstance;
 
-    public RAnalyzerTask(CsvFileGroup resultFileGroup, TimingDockerEvaluatorCommandConfig evaluationConfig) {
-        this.resultFileGroup = resultFileGroup;
+    public RAnalyzerTask(TimingDockerEvaluatorCommandConfig evaluationConfig, File singleCsvFile, LibraryInstance assignedLibraryInstance) {
         this.evaluationConfig = evaluationConfig;
+        this.singleCsvFile = singleCsvFile;
+        this.assignedLibraryInstance = assignedLibraryInstance;
     }
+    
     
     
     
     public void execute() {
-        LOGGER.info("Starting BB eval for {}", getResultFileGroup().getLibraryInstance().getDockerName());
-        for(File bbFile : getResultFileGroup().getBleichenbacherFiles()) {
-            evaluateWithR(bbFile);
-        }
-        LOGGER.info("Starting PO eval for {}", getResultFileGroup().getLibraryInstance().getDockerName());
-        for(File poFile : getResultFileGroup().getPaddingOracleFiles()) {
-            evaluateWithR(poFile);
-        }
-        LOGGER.info("Starting LUCKY13 eval for {}", getResultFileGroup().getLibraryInstance().getDockerName());
-        for(File lucky13File : getResultFileGroup().getLucky13Files()) {
-            evaluateWithR(lucky13File);
-        }
-
-        LOGGER.info("Finished R-Eval for {}", getResultFileGroup().getLibraryInstance().getDockerName());
+        LOGGER.info("Starting eval for {} of {}", singleCsvFile.getName(), assignedLibraryInstance.getDockerName());
+        evaluateWithR(singleCsvFile);
+        LOGGER.info("Finished R-Eval for {} of {}", singleCsvFile.getName(), assignedLibraryInstance.getDockerName());
     }
 
     public void evaluateWithR(File csvFile) {
         int exitCode = callR(csvFile);
-        LOGGER.info(getResultFileGroup().getLibraryInstance().getDockerName() + "+" + csvFile.getName() + "==" + exitCode);
+        LOGGER.info("Result {} of {} == {}", singleCsvFile.getName(), assignedLibraryInstance.getDockerName(), exitCode);
     }
 
-    public int callR(File bbFile) {
+    public int callR(File csvFile) {
         try {
-            return RScriptManager.testDetailedWithR(bbFile.getAbsolutePath(), "-postEval-", evaluationConfig.getTotalMeasurements());
+            return RScriptManager.testDetailedWithR(csvFile.getAbsolutePath(), "-postEval-", evaluationConfig.getTotalMeasurements());
         } catch (InterruptedException | IOException ex) {
-            LOGGER.error("Failed to run R script for {}", bbFile.getAbsolutePath(), ex);
+            LOGGER.error("Failed to run R script for {}", csvFile.getAbsolutePath(), ex);
             throw new RuntimeException();
         }
-    }
-
-    public CsvFileGroup getResultFileGroup() {
-        return resultFileGroup;
     }
     
     

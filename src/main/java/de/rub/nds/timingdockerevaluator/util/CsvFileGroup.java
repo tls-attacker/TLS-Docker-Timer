@@ -1,13 +1,11 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package de.rub.nds.timingdockerevaluator.util;
 
 import de.rub.nds.timingdockerevaluator.task.subtask.SubtaskNames;
 import java.io.File;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 public class CsvFileGroup {
     private final LibraryInstance libraryInstance;
@@ -46,5 +44,13 @@ public class CsvFileGroup {
 
     public List<File> getLucky13Files() {
         return lucky13Files;
+    }
+    
+    public Set<File> getAllUniqueFiles() {
+        Set<File> allFiles = new HashSet<>();
+        allFiles.addAll(bleichenbacherFiles);
+        allFiles.addAll(paddingOracleFiles);
+        allFiles.addAll(lucky13Files);
+        return allFiles;
     }
 }
