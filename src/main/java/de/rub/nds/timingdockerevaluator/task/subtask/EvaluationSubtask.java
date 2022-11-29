@@ -6,6 +6,9 @@ import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.eval.VectorEvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
+import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
+import de.rub.nds.timingdockerevaluator.util.HttpUtil;
+import de.rub.nds.timingdockerevaluator.util.TimingBenchmark;
 import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.constants.NamedGroup;
@@ -108,7 +111,9 @@ public abstract class EvaluationSubtask {
             int unreachableInARow = 0;
             for(int i = 0; i < executionPlan.length; i++) {
                 try {
+                    TimingBenchmark.print("Starting next measurement");
                     Long newMeasurement = measure(subtaskIdentifiers.get(executionPlan[i]));
+                    TimingBenchmark.print("Obtained measurement");
                     addMeasurement(subtaskIdentifiers.get(executionPlan[i]), newMeasurement);
                     failedInARow = 0;
                     unreachableInARow = 0;
@@ -124,7 +129,7 @@ public abstract class EvaluationSubtask {
                     unreachableInARow++;
                     failedInARow++;
                     LOGGER.error("Target {} was unreachable", getTargetName());
-                    if(unreachableInARow == MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART && ((evaluationConfig.isEphemeral() || evaluationConfig.isKillProcess()))) {
+                    if(unreachableInARow == MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART && (evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_CONTAINTER || evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_SERVER)) {
                         LOGGER.warn("Failed to reach {} {} times - switching to restarting mode", getTargetName(), MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART);
                         switchedToRestarting = true;
                     }
@@ -255,7 +260,11 @@ public abstract class EvaluationSubtask {
         config.setDefaultClientSupportedCipherSuites(cipherSuite);
         config.setDefaultRunningMode(RunningModeType.CLIENT);
         config.getDefaultClientConnection().setHostname(targetIp);
-        config.getDefaultClientConnection().setPort(targetPort);
+        int dynamicPort = targetPort;
+        if(evaluationConfig.getTargetManagement() == DockerTargetManagement.PORT_SWITCHING) {
+            dynamicPort = HttpUtil.getCurrentPort(targetIp, targetPort);
+        }
+        config.getDefaultClientConnection().setPort(dynamicPort);
         config.getDefaultClientConnection().setProxyControlHostname("localhost");
         config.getDefaultClientConnection().setProxyControlPort(evaluationConfig.getProxyControlPort());
         config.getDefaultClientConnection().setProxyDataHostname("localhost");
@@ -339,7 +348,7 @@ public abstract class EvaluationSubtask {
     }
     
     protected void prepareExecutor(WorkflowExecutor executor) {
-        if((evaluationConfig.isEphemeral() || evaluationConfig.isKillProcess()) && switchedToRestarting) {
+        if(evaluationConfig.additionalContainerActionsRequired()) {
             executor.setBeforeTransportPreInitCallback(parentTask.getRestartCallable());
         }
     }

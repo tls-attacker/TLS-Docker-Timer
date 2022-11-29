@@ -8,6 +8,7 @@ import com.github.dockerjava.api.model.Image;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.eval.RScriptManager;
+import de.rub.nds.timingdockerevaluator.util.TimingBenchmark;
 import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.constants.TlsImageLabels;
 import de.rub.nds.tls.subject.docker.DockerClientManager;
@@ -49,7 +50,7 @@ public class Main {
             LOGGER.error(ex);
             return;
         }
-        
+        TimingBenchmark.setEvaluationConfig(evaluationConfig);
         if(evaluationConfig.isAnalyzeOnly()) {
             analyzeGivenResults();
         } else {
@@ -90,7 +91,7 @@ public class Main {
         LOGGER.info("Measurements per step set to {}", evaluationConfig.getMeasurementsPerStep());
         LOGGER.info("Maximum measurements per vector set to {}", evaluationConfig.getTotalMeasurements());
         LOGGER.info("Analyzing {} in parallel", evaluationConfig.getThreads());
-        LOGGER.info("Ephemeral server instances set to: {}", evaluationConfig.isEphemeral());
+        LOGGER.info("Target management set to: {}", evaluationConfig.getTargetManagement());
         if(evaluationConfig.getSpecificSubtask() != null) {
             LOGGER.info("Limiting tests to subtask: {}", evaluationConfig.getSpecificSubtask());
         }

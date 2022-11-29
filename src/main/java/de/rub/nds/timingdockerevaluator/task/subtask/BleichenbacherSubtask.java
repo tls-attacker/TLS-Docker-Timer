@@ -4,15 +4,18 @@ import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfi
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
+import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
 import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.constants.AlgorithmResolver;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
+import de.rub.nds.tlsattacker.core.constants.HandshakeMessageType;
 import de.rub.nds.tlsattacker.core.constants.KeyExchangeAlgorithm;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.util.CertificateFetcher;
 import de.rub.nds.tlsattacker.core.workflow.DefaultWorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
+import de.rub.nds.tlsattacker.core.workflow.WorkflowTraceUtil;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceiveTillAction;
 import de.rub.nds.tlsscanner.serverscanner.probe.bleichenbacher.constans.BleichenbacherScanType;
 import de.rub.nds.tlsscanner.serverscanner.probe.bleichenbacher.constans.BleichenbacherWorkflowType;
@@ -55,9 +58,9 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
         
         version = determineVersion(serverReport);
         if (cipherSuite != null && version != null) {
-            if(evaluationConfig.isEphemeral()) {
+            if(evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_CONTAINTER) {
                parentTask.restartContainer(); 
-            } else if(evaluationConfig.isKillProcess()) {
+            } else if(evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_CONTAINTER) {
                 parentTask.restartServer();
             }
             
@@ -118,6 +121,9 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
 
     @Override
     protected boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace) {
+        if(WorkflowTraceUtil.didReceiveMessage(HandshakeMessageType.CERTIFICATE_REQUEST, executedTrace)) {
+            return false;
+        }
         //ensure that we got SH + CERT + SKE + SHD
         return ((ReceiveTillAction)executedTrace.getFirstReceivingAction()).executedAsPlanned();
     }

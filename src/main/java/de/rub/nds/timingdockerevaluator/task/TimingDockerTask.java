@@ -5,6 +5,7 @@ import com.github.dockerjava.api.exception.NotModifiedException;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import static de.rub.nds.timingdockerevaluator.task.EvaluationTask.CONTAINER_NAME_PREFIX;
 import de.rub.nds.timingdockerevaluator.task.exception.InstanceCreationFailedException;
+import de.rub.nds.timingdockerevaluator.util.TimingBenchmark;
 import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.docker.DockerTlsManagerFactory;
 import de.rub.nds.tls.subject.docker.DockerTlsServerInstance;
@@ -30,8 +31,10 @@ public abstract class TimingDockerTask {
 
     public void stopContainter(DockerTlsServerInstance dockerInstance) {
         try {
+            TimingBenchmark.print("Stopping container");
             dockerInstance.kill();
             dockerInstance.remove();
+            TimingBenchmark.print("Stopped container");
         } catch (NotModifiedException exception) {
             LOGGER.warn("Failed to stop container for {} - was already stopped or never started!", dockerInstance.getImage().getId());
         }

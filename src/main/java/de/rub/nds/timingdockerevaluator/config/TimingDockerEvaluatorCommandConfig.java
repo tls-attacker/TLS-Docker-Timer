@@ -3,8 +3,17 @@ package de.rub.nds.timingdockerevaluator.config;
 
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
+import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
 
 public class TimingDockerEvaluatorCommandConfig {
+
+    public boolean isBenchmark() {
+        return benchmark;
+    }
+
+    public void setBenchmark(boolean benchmark) {
+        this.benchmark = benchmark;
+    }
 
     public boolean isKeepContainer() {
         return keepContainer;
@@ -74,12 +83,6 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = "-dry", description = "Collect images / targets but do not start evaluation process")
     private boolean dryRun = false;
     
-    @Parameter(names = {"-ephemeralContainers","-e"}, description = "Server containers are restarted before each new handshake")
-    private boolean ephemeral = false;
-    
-    @Parameter(names = {"-killProcess","-k"}, description = "Kill and restart the server process inside the docker container for each handshake")
-    private boolean killProcess = false;
-    
     @Parameter(names = {"-additionalParameter","-a"}, description = "Additional parameter for the server inside the docker container")
     private String additionalParameter = null;
     
@@ -100,6 +103,12 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-printToConsole"}, description = "Print directly to console")
     private boolean printToConsole = false;
+    
+    @Parameter(names = {"-benchmark"}, description = "Print benchmark details")
+    private boolean benchmark = false;
+    
+    @Parameter(names = {"-targetManagement"}, description = "How to handle server inside docker container")
+    private DockerTargetManagement targetManagement = DockerTargetManagement.PORT_SWITCHING;
     
     public String getSpecificLibrary() {
         return specificLibrary;
@@ -265,22 +274,6 @@ public class TimingDockerEvaluatorCommandConfig {
         this.measureOnly = measureOnly;
     }
 
-    public boolean isEphemeral() {
-        return ephemeral;
-    }
-
-    public void setEphemeral(boolean ephemeral) {
-        this.ephemeral = ephemeral;
-    }
-
-    public boolean isKillProcess() {
-        return killProcess;
-    }
-
-    public void setKillProcess(boolean killProcess) {
-        this.killProcess = killProcess;
-    }
-
     public String getAdditionalParameter() {
         return additionalParameter;
     }
@@ -331,5 +324,17 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setPrintToConsole(boolean printToConsole) {
         this.printToConsole = printToConsole;
+    }
+
+    public DockerTargetManagement getTargetManagement() {
+        return targetManagement;
+    }
+
+    public void setTargetManagement(DockerTargetManagement targetManagement) {
+        this.targetManagement = targetManagement;
+    }
+    
+    public boolean additionalContainerActionsRequired() {
+        return getTargetManagement() != DockerTargetManagement.KEEP_ALIVE;
     }
 }
