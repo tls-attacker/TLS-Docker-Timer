@@ -2,7 +2,6 @@
 package de.rub.nds.timingdockerevaluator.config;
 
 import com.beust.jcommander.Parameter;
-import com.beust.jcommander.Parameters;
 import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
 
 public class TimingDockerEvaluatorCommandConfig {
@@ -47,7 +46,7 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-port", "-p"}, description = "Specific port to connect to instead of managed docker container")
     private int specificPort = 1337;
     
-    @Parameter(names = "-skipr", description = "Skip execution of the R script and only measure")
+    @Parameter(names = {"-skipr", "-skipR"}, description = "Skip execution of the R script and only measure")
     private boolean skipR = false;
     
     @Parameter(names = "-name", description = "Use a specific name for the output of a remote target")

@@ -124,7 +124,7 @@ public abstract class EvaluationSubtask {
                 } catch (UndetectableOracleException ex) {
                     failedInARow++;
                     report.undetectableOracle();
-                    LOGGER.error("Target {} send no alert and did not close for {}", getTargetName(), getSubtaskName());
+                    LOGGER.error("Target {} send no alert and did not close for vector {} of {}", getTargetName(), subtaskIdentifiers.get(executionPlan[i]), getSubtaskName());
                 } catch (TransportHandlerConnectException connectException) {
                     unreachableInARow++;
                     failedInARow++;
@@ -139,10 +139,14 @@ public abstract class EvaluationSubtask {
                     LOGGER.error("Failed to measure {} - Target: {} will retry", getSubtaskName(), getTargetName(),ex);
                 }
                 
-                if(failedInARow == MAX_FAILURES_IN_A_ROW || report.getUndetectableCount()> UNDETECTABLE_LIMIT) {
-                        LOGGER.error("Measuring aborted due to frequent failures - Subtask {} - Target: {}", getSubtaskName(), getTargetName());
-                        report.setFailed(true);
-                        return report;
+                if(failedInARow == MAX_FAILURES_IN_A_ROW) {
+                    LOGGER.error("Measuring aborted due to frequent failures - Subtask {} - Target: {}", getSubtaskName(), getTargetName());
+                    report.setFailed(true);
+                    return report;
+                } else if(report.getUndetectableCount()> UNDETECTABLE_LIMIT) {
+                    LOGGER.error("Measuring aborted since socket was often not closed and no alert was sent - Subtask {} - Target: {}", getSubtaskName(), getTargetName());
+                    report.setFailed(true);
+                    return report;
                 }
             }
             measurementsDone += evaluationConfig.getMeasurementsPerStep();

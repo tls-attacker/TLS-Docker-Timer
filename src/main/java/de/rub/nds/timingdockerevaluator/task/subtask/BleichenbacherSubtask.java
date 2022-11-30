@@ -91,12 +91,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
 
     @Override
     protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException {
-        Pkcs1Vector selectedVector = null;
-        for(Pkcs1Vector vector: vectors) {
-            if(vector.getName().replace(" ", "_").equals(typeIdentifier)) {
-                selectedVector = vector;
-            }
-        }
+        Pkcs1Vector selectedVector = resolveVector(typeIdentifier);
         if(selectedVector == null) {
             throw new IllegalArgumentException("Was unable to resolve identifier " + typeIdentifier);
         }
@@ -110,6 +105,16 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
         final State state = new State(config, workflowTrace);
         runExecutor(state);
         return getMeasurement(state);
+    }
+
+    protected Pkcs1Vector resolveVector(String typeIdentifier) {
+        Pkcs1Vector selectedVector = null;
+        for(Pkcs1Vector vector: vectors) {
+            if(vector.getName().replace(" ", "_").equals(typeIdentifier)) {
+                selectedVector = vector;
+            }
+        }
+        return selectedVector;
     }
 
     

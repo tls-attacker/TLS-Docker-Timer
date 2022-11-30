@@ -133,16 +133,23 @@ public class EvaluationTask extends TimingDockerTask {
             boolean portSwitchEnabled = false;
             for (int attempts = 0; attempts < 3 && !portSwitchEnabled; attempts++) {
                 portSwitchEnabled = HttpUtil.enablePortSwitiching(targetIp);
-                if (!portSwitchEnabled) {
-                    try {
-                        Thread.sleep(200);
-                    } catch (Exception ignored) {
-                    }
+                if(!portSwitchEnabled) {
+                    pauseFor(500);
                 }
             }
             if (!portSwitchEnabled) {
                 LOGGER.error("Failed to enable port switching within {} attempts, future failures to obtain port from Docker will use initial port ({})", PORT_SWITCH_ACTIVATION_ATTEMPTS, targetPort);
+            } else {
+                LOGGER.info("Port switching enabled. Pausing 2 seconds to take effect.");
+                pauseFor(2000);
             }
+        }
+    }
+
+    public void pauseFor(long msToWait) {
+        try {
+            Thread.sleep(msToWait);
+        } catch (Exception ignored) {
         }
     }
 
