@@ -76,8 +76,10 @@ public abstract class TimingDockerTask {
             
             switch(implementation) {
                 case WOLFSSL:
-                    // loop server (TODO: check if known in all versions)
-                    //additionalParameters.add("-i");
+                    // loop server
+                    if(version.startsWith("4.") || version.startsWith("3.9") || version.startsWith("3.8") || version.startsWith("3.7") || version.equals("3.6.9d") || version.equals("3.6.9c") || version.equals("3.6.9b")) {
+                        additionalParameters.add("-i");
+                    }
                     break;
                 case BOTAN:
                     // allow RSA KEX

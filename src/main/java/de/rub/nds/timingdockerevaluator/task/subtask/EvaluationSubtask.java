@@ -53,7 +53,7 @@ public abstract class EvaluationSubtask {
     private final static Random notReallyRandom = new Random(System.currentTimeMillis());
     private static final Logger LOGGER = LogManager.getLogger();
     private static final int MAX_FAILURES_IN_A_ROW = 15;
-    private static final int UNDETECTABLE_LIMIT = 300;
+    private static final int UNDETECTABLE_LIMIT = 150;
     private static final int MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART = 5;
     
     
@@ -123,8 +123,8 @@ public abstract class EvaluationSubtask {
                     LOGGER.error("WorkflowTrace failed early for {} - Target: {} will retry", getSubtaskName(), getTargetName());
                 } catch (UndetectableOracleException ex) {
                     failedInARow++;
-                    report.undetectableOracle();
-                    LOGGER.error("Target {} send no alert and did not close for vector {} of {}", getTargetName(), subtaskIdentifiers.get(executionPlan[i]), getSubtaskName());
+                    report.undetectableOracle(subtaskIdentifiers.get(executionPlan[i]));
+                    LOGGER.warn("Target {} send no alert and did not close for vector {} of {}", getTargetName(), subtaskIdentifiers.get(executionPlan[i]), getSubtaskName());
                 } catch (TransportHandlerConnectException connectException) {
                     unreachableInARow++;
                     failedInARow++;
@@ -144,8 +144,9 @@ public abstract class EvaluationSubtask {
                     report.setFailed(true);
                     return report;
                 } else if(report.getUndetectableCount()> UNDETECTABLE_LIMIT) {
-                    LOGGER.error("Measuring aborted since socket was often not closed and no alert was sent - Subtask {} - Target: {}", getSubtaskName(), getTargetName());
+                    LOGGER.error("Measuring aborted since socket was {} times not closed and no alert was sent - Subtask {} - Target: {}", UNDETECTABLE_LIMIT, getSubtaskName(), getTargetName());
                     report.setFailed(true);
+                    report.setUndetectable(true);
                     return report;
                 }
             }

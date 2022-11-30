@@ -2,10 +2,14 @@ package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 public class EvaluationSubtaskReport {
+
+    
     private  String taskName;
     private  String targetName;
     private  List<String> withDifference = new LinkedList<>();
@@ -13,9 +17,11 @@ public class EvaluationSubtaskReport {
     private int genericFailureCount;
     private int failedEarlyCount;
     private int undetectableCount;
+    private Map<String, Integer> undetectablePerVector = new HashMap<>();
     private CipherSuite cipherSuite;
     private ProtocolVersion protocolVersion;
     private boolean failed = false;
+    private boolean undetectable = false;
     private long startTimestamp = System.currentTimeMillis();
     private long endTimestamp;
     private long duration;
@@ -130,7 +136,9 @@ public class EvaluationSubtaskReport {
         genericFailureCount++;
     }
     
-    public void undetectableOracle() {
+    public void undetectableOracle(String vectorIdentifier) {
+        undetectablePerVector.computeIfAbsent(vectorIdentifier, identifier -> 0);
+        undetectablePerVector.put(vectorIdentifier, undetectablePerVector.get(vectorIdentifier) + 1);
         undetectableCount++;
     }
     
@@ -161,5 +169,21 @@ public class EvaluationSubtaskReport {
 
     public void setDuration(long duration) {
         this.duration = duration;
+    }
+    
+    public Map<String, Integer> getUndetectablePerVector() {
+        return undetectablePerVector;
+    }
+
+    public void setUndetectablePerVector(Map<String, Integer> undetectablePerVector) {
+        this.undetectablePerVector = undetectablePerVector;
+    }
+
+    public boolean isUndetectable() {
+        return undetectable;
+    }
+
+    public void setUndetectable(boolean undetectable) {
+        this.undetectable = undetectable;
     }
 }
