@@ -29,7 +29,7 @@
         <dependency>
             <groupId>de.rub.nds.tlsscanner</groupId>
             <artifactId>TLS-Server-Scanner</artifactId>
-            <version>4.3.0b-SNAPSHOT</version>
+            <version>4.3.0b2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>de.rub.nds.tlsscanner</groupId>
