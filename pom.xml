@@ -9,7 +9,7 @@
         <dependency>
             <groupId>de.rub.nds.tlsattacker</groupId>
             <artifactId>TLS-Core</artifactId>
-            <version>3.9.0b2-SNAPSHOT</version>
+            <version>3.9.0b3-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>de.rub.nds.tlsdockerlib</groupId>
@@ -29,12 +29,12 @@
         <dependency>
             <groupId>de.rub.nds.tlsscanner</groupId>
             <artifactId>TLS-Server-Scanner</artifactId>
-            <version>4.3.0b2-SNAPSHOT</version>
+            <version>4.3.0b3-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>de.rub.nds.tlsscanner</groupId>
             <artifactId>TLS-Scanner-Core</artifactId>
-            <version>4.3.0b2-SNAPSHOT</version>
+            <version>4.3.0b3-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>de.rub.nds.tlsbreaker</groupId>
