@@ -23,6 +23,7 @@ import de.rub.nds.tls.subject.constants.TlsImageLabels;
 import de.rub.nds.tls.subject.docker.DockerClientManager;
 import de.rub.nds.tls.subject.docker.DockerTlsInstance;
 import de.rub.nds.tls.subject.docker.DockerTlsServerInstance;
+import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.config.delegate.ClientDelegate;
 import de.rub.nds.tlsattacker.core.config.delegate.GeneralDelegate;
 import de.rub.nds.tlsattacker.core.exceptions.TransportHandlerConnectException;
@@ -32,6 +33,7 @@ import de.rub.nds.tlsattacker.transport.TransportHandlerFactory;
 import de.rub.nds.tlsattacker.transport.tcp.ClientTcpTransportHandler;
 import de.rub.nds.tlsscanner.core.constants.TlsProbeType;
 import de.rub.nds.tlsscanner.serverscanner.config.ServerScannerConfig;
+import de.rub.nds.tlsscanner.serverscanner.connectivity.ConnectivityChecker;
 import de.rub.nds.tlsscanner.serverscanner.execution.TlsServerScanner;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
 import java.util.LinkedList;
@@ -66,6 +68,8 @@ public class EvaluationTask extends TimingDockerTask {
     private String version;
     private ServerReport serverReport;
     private DockerTlsServerInstance dockerInstance;
+    
+    private boolean portSwitchEnabled = false;
 
     List<EvaluationSubtask> subtasks = new LinkedList<>();
 
@@ -130,18 +134,35 @@ public class EvaluationTask extends TimingDockerTask {
     private void handlePortSwitching() {
         if (getEvaluationConfig().getTargetManagement() == DockerTargetManagement.PORT_SWITCHING) {
             LOGGER.info("Enabling port switching for target {}", targetName);
-            boolean portSwitchEnabled = false;
-            for (int attempts = 0; attempts < 3 && !portSwitchEnabled; attempts++) {
+            for (int attempts = 0; attempts < 3 && !isPortSwitchEnabled(); attempts++) {
                 portSwitchEnabled = HttpUtil.enablePortSwitiching(targetIp);
-                if(!portSwitchEnabled) {
+                if(!isPortSwitchEnabled()) {
                     pauseFor(500);
                 }
             }
-            if (!portSwitchEnabled) {
+            if (!isPortSwitchEnabled()) {
                 LOGGER.error("Failed to enable port switching within {} attempts, future failures to obtain port from Docker will use initial port ({})", PORT_SWITCH_ACTIVATION_ATTEMPTS, targetPort);
             } else {
-                LOGGER.info("Port switching enabled. Pausing 2 seconds to take effect.");
+                LOGGER.info("Port switching enabled by go server. Pausing 2 seconds to take effect.");
                 pauseFor(2000);
+                testPortSwitchWorks();
+            }
+        }
+    }
+
+    private void testPortSwitchWorks() {
+        Config connectivityCheckConfig = Config.createConfig();
+        connectivityCheckConfig.getDefaultClientConnection().setHostname(targetIp);
+        connectivityCheckConfig.getDefaultClientConnection().setPort(HttpUtil.getCurrentPort(targetIp, targetPort));
+        ConnectivityChecker checker = new ConnectivityChecker(connectivityCheckConfig.getDefaultClientConnection());
+        if(!checker.isConnectable()) {
+            connectivityCheckConfig.getDefaultClientConnection().setPort(targetPort);
+            ConnectivityChecker initalPortChecker = new ConnectivityChecker(connectivityCheckConfig.getDefaultClientConnection());
+            if(initalPortChecker.isConnectable()) {
+                LOGGER.warn("Target {} does not seem to respect given port. Disabling port switching.", targetName);
+                portSwitchEnabled = false;
+            } else {
+                LOGGER.warn("Failed to reach target {} using requested and default port.", targetName);
             }
         }
     }
@@ -207,13 +228,13 @@ public class EvaluationTask extends TimingDockerTask {
         LOGGER.info("Starting TLS-Scanner for {}", targetName);
         ClientDelegate clientDelegate = new ClientDelegate();
         int dynamicPort = targetPort;
-        if (getEvaluationConfig().getTargetManagement() == DockerTargetManagement.PORT_SWITCHING) {
+        if (isPortSwitchEnabled()) {
             dynamicPort = HttpUtil.getCurrentPort(targetIp, targetPort);
         }
         clientDelegate.setHost(targetIp + ":" + dynamicPort);
         ServerScannerConfig scannerConfig = new ServerScannerConfig(new GeneralDelegate(), clientDelegate);
         scannerConfig.setTimeout(getEvaluationConfig().getTimeout());
-        scannerConfig.setProbes(TlsProbeType.PROTOCOL_VERSION, TlsProbeType.CIPHER_SUITE);
+        scannerConfig.setProbes(TlsProbeType.PROTOCOL_VERSION, TlsProbeType.CIPHER_SUITE, TlsProbeType.CCA_SUPPORT, TlsProbeType.CCA_REQUIRED);
         scannerConfig.setOverallThreads(1);
         scannerConfig.setParallelProbes(1);
         scannerConfig.setConfigSearchCooldown(true);
@@ -238,7 +259,9 @@ public class EvaluationTask extends TimingDockerTask {
                     restartServer();
                     break;
                 case PORT_SWITCHING:
-                    getSwitchedPort(state);
+                    if(isPortSwitchEnabled()) {
+                        getSwitchedPort(state);
+                    }
                     break;
             }
             return 0;
@@ -297,6 +320,10 @@ public class EvaluationTask extends TimingDockerTask {
         } else {
             throw new FailedToHandshakeException();
         }
+    }
+
+    public boolean isPortSwitchEnabled() {
+        return portSwitchEnabled;
     }
 
 }

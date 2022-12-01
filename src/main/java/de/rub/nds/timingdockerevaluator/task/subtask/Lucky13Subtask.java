@@ -71,6 +71,7 @@ public class Lucky13Subtask extends EvaluationSubtask {
         }
         Record record = attacker.createRecordWithPadding(padLen, cipherSuite);
         State state = attacker.buildAttackState(record);
+        handleClientAuthentication(state.getWorkflowTrace(), state.getConfig());
         runExecutor(state);
         return getMeasurement(state);
     }

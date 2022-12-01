@@ -115,6 +115,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
         config.setDefaultClientRandom(newRandom);
         final WorkflowTrace workflowTrace = BleichenbacherWorkflowGenerator.generateWorkflow(config, BleichenbacherWorkflowType.CKE_CCS_FIN, selectedVector.getEncryptedValue());
         setSpecificReceiveAction(workflowTrace);
+        handleClientAuthentication(workflowTrace, config);
         final State state = new State(config, workflowTrace);
         runExecutor(state);
         return getMeasurement(state);
@@ -139,9 +140,6 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
 
     @Override
     protected boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace) {
-        if(WorkflowTraceUtil.didReceiveMessage(HandshakeMessageType.CERTIFICATE_REQUEST, executedTrace)) {
-            return false;
-        }
         //ensure that we got SH + CERT + SKE + SHD
         return ((ReceiveTillAction)executedTrace.getFirstReceivingAction()).executedAsPlanned();
     }

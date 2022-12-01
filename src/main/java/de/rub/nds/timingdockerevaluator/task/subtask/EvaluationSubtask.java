@@ -1,5 +1,6 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
+import de.rub.nds.modifiablevariable.util.Modifiable;
 import de.rub.nds.timingdockerevaluator.task.eval.RScriptManager;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
@@ -11,6 +12,7 @@ import de.rub.nds.timingdockerevaluator.util.HttpUtil;
 import de.rub.nds.timingdockerevaluator.util.TimingBenchmark;
 import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
+import de.rub.nds.tlsattacker.core.constants.HandshakeMessageType;
 import de.rub.nds.tlsattacker.core.constants.NamedGroup;
 import de.rub.nds.tlsattacker.core.constants.ProtocolMessageType;
 import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
@@ -18,7 +20,12 @@ import de.rub.nds.tlsattacker.core.constants.RunningModeType;
 import de.rub.nds.tlsattacker.core.constants.SignatureAndHashAlgorithm;
 import de.rub.nds.tlsattacker.core.exceptions.TransportHandlerConnectException;
 import de.rub.nds.tlsattacker.core.exceptions.WorkflowExecutionException;
+import de.rub.nds.tlsattacker.core.protocol.ProtocolMessage;
 import de.rub.nds.tlsattacker.core.protocol.message.AlertMessage;
+import de.rub.nds.tlsattacker.core.protocol.message.CertificateMessage;
+import de.rub.nds.tlsattacker.core.protocol.message.CertificateRequestMessage;
+import de.rub.nds.tlsattacker.core.protocol.message.CertificateVerifyMessage;
+import de.rub.nds.tlsattacker.core.protocol.message.TlsMessage;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.DefaultWorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowExecutor;
@@ -26,6 +33,7 @@ import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTraceUtil;
 import de.rub.nds.tlsattacker.core.workflow.action.GenericReceiveAction;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceiveAction;
+import de.rub.nds.tlsattacker.core.workflow.action.SendAction;
 import de.rub.nds.tlsattacker.core.workflow.action.TlsAction;
 import de.rub.nds.tlsattacker.transport.TransportHandlerType;
 import de.rub.nds.tlsattacker.transport.socket.SocketState;
@@ -266,7 +274,7 @@ public abstract class EvaluationSubtask {
         config.setDefaultRunningMode(RunningModeType.CLIENT);
         config.getDefaultClientConnection().setHostname(targetIp);
         int dynamicPort = targetPort;
-        if(evaluationConfig.getTargetManagement() == DockerTargetManagement.PORT_SWITCHING) {
+        if(parentTask.isPortSwitchEnabled()) {
             dynamicPort = HttpUtil.getCurrentPort(targetIp, targetPort);
         }
         config.getDefaultClientConnection().setPort(dynamicPort);
@@ -325,6 +333,27 @@ public abstract class EvaluationSubtask {
             workflowTrace.addTlsAction(new ReceiveAction(new AlertMessage()));
         } else if(!(lastAction instanceof ReceiveAction)) {
             LOGGER.warn("Last Action for {} is not a ReceiveAction and not a GenericReceive");
+        }
+    }
+    
+    protected void handleClientAuthentication(WorkflowTrace workflowTrace, Config config) {
+        SendAction clientSecondFlight = (SendAction)WorkflowTraceUtil.getFirstSendingActionForMessage(HandshakeMessageType.CLIENT_KEY_EXCHANGE, workflowTrace);
+        if(serverReport.getCcaSupported()) {
+            if(workflowTrace.getFirstReceivingAction() instanceof ReceiveAction) {
+                List<ProtocolMessage> expectedMessages = ((ReceiveAction)workflowTrace.getFirstReceivingAction()).getExpectedMessages();
+                expectedMessages.add(expectedMessages.size() - 2, new CertificateRequestMessage());
+            }
+            
+            
+            if(serverReport.getCcaRequired()) {
+                clientSecondFlight.getSendMessages().add(0, new CertificateMessage(config));
+                clientSecondFlight.getSendMessages().add(2, new CertificateVerifyMessage(config));
+            } else {
+                CertificateMessage emptyCert = new CertificateMessage(config);
+                emptyCert.setCertificatesListBytes(Modifiable.explicit(new byte[0]));
+                clientSecondFlight.getSendMessages().add(0, emptyCert);
+            }
+            
         }
     }
     
