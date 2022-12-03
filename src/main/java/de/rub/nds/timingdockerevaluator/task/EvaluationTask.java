@@ -68,7 +68,7 @@ public class EvaluationTask extends TimingDockerTask {
     private String version;
     private ServerReport serverReport;
     private DockerTlsServerInstance dockerInstance;
-    
+
     private boolean portSwitchEnabled = false;
 
     List<EvaluationSubtask> subtasks = new LinkedList<>();
@@ -136,7 +136,7 @@ public class EvaluationTask extends TimingDockerTask {
             LOGGER.info("Enabling port switching for target {}", targetName);
             for (int attempts = 0; attempts < 3 && !isPortSwitchEnabled(); attempts++) {
                 portSwitchEnabled = HttpUtil.enablePortSwitiching(targetIp);
-                if(!isPortSwitchEnabled()) {
+                if (!isPortSwitchEnabled()) {
                     pauseFor(500);
                 }
             }
@@ -155,16 +155,22 @@ public class EvaluationTask extends TimingDockerTask {
         connectivityCheckConfig.getDefaultClientConnection().setHostname(targetIp);
         connectivityCheckConfig.getDefaultClientConnection().setPort(HttpUtil.getCurrentPort(targetIp, targetPort));
         ConnectivityChecker checker = new ConnectivityChecker(connectivityCheckConfig.getDefaultClientConnection());
-        if(!checker.isConnectable()) {
+        if (!checker.isConnectable()) {
             connectivityCheckConfig.getDefaultClientConnection().setPort(targetPort);
             ConnectivityChecker initalPortChecker = new ConnectivityChecker(connectivityCheckConfig.getDefaultClientConnection());
-            if(initalPortChecker.isConnectable()) {
+            if (initalPortChecker.isConnectable()) {
                 LOGGER.warn("Target {} does not seem to respect given port. Disabling port switching.", targetName);
                 portSwitchEnabled = false;
             } else {
                 LOGGER.warn("Failed to reach target {} using requested and default port.", targetName);
             }
+        } else {
+            LOGGER.info("Port switiching tested, pausing 2s to allow for server restart before initiating TLS-Scanner");
+            // if the server crashed here, give it some time to restart before
+            // the server scanner performs its own connectivity check
+            pauseFor(2000);
         }
+
     }
 
     public void pauseFor(long msToWait) {
@@ -259,7 +265,7 @@ public class EvaluationTask extends TimingDockerTask {
                     restartServer();
                     break;
                 case PORT_SWITCHING:
-                    if(isPortSwitchEnabled()) {
+                    if (isPortSwitchEnabled()) {
                         getSwitchedPort(state);
                     }
                     break;
