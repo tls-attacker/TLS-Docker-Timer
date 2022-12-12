@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.security.PublicKey;
 import java.security.cert.CertificateParsingException;
 import java.security.interfaces.RSAPublicKey;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -86,7 +87,13 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
                 LOGGER.error("Failed to fetch RSA PublicKey for {}", getTargetName());
                 return;
             }
-            vectors = ((List<Pkcs1Vector>) Pkcs1VectorGenerator.generatePkcs1Vectors((RSAPublicKey) publicKey, BleichenbacherScanType.FAST, version)).stream().filter(vector -> vector.getName().contains("Correctly formatted PKCS#1 PMS message") || vector.getName().contains("Wrong first byte (0x00 set to 0x17)")).collect(Collectors.toList());
+            List<String> consideredVectorNames = new LinkedList<>();
+            consideredVectorNames.add("Correctly formatted PKCS#1 PMS message");
+            consideredVectorNames.add("Wrong second byte (0x02 set to 0x17)");
+            consideredVectorNames.add("Invalid TLS version in PMS");
+            consideredVectorNames.add("No 0x00 in message");
+            consideredVectorNames.add("0x00 on the next to last position (|PMS| = 1)");
+            vectors = ((List<Pkcs1Vector>) Pkcs1VectorGenerator.generatePkcs1Vectors((RSAPublicKey) publicKey, BleichenbacherScanType.FAST, version)).stream().filter(vector -> consideredVectorNames.contains(vector.getName())).collect(Collectors.toList());
         }
     }
 
@@ -185,6 +192,11 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
             LOGGER.debug(e);
         }
         return state.getTlsContext().getServerCertificate();
+    }
+    
+    @Override
+    protected boolean isCompareAllVectorCombinations() {
+        return true;
     }
 
 }
