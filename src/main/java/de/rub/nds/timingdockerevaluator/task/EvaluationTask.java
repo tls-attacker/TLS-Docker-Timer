@@ -285,13 +285,9 @@ public class EvaluationTask extends TimingDockerTask {
     }
 
     public void restartServer() {
-        try {
-            TimingBenchmark.print("Killing server");
-            Runtime.getRuntime().exec("curl --connect-timeout 2 " + targetIp + ":8090/killprocess");
-            TimingBenchmark.print("Server killed");
-        } catch (IOException ex) {
-            LOGGER.error("Failed to call restart URL", ex);
-        }
+        TimingBenchmark.print("Killing server");
+        HttpUtil.killServer(targetIp);
+        TimingBenchmark.print("Server killed");
     }
 
     public void restartContainer() {

@@ -6,11 +6,14 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class HttpUtil {
     
     public static final String REQUEST_PORT_PATH = "portrequest";
     public static final String ENABLE_PORT_SWITCHING = "enableportswitch";
+    public static final String KILL_SERVER = "killserver";
     
     public static List<String> queryDockerHttpServer(String ip, String endpoint) throws Exception {
         URL urlTarget = new URL("http://" + ip + ":8090/" + endpoint);
@@ -55,5 +58,12 @@ public class HttpUtil {
             return fallbackPort;
         }
         return fallbackPort;
+    }
+    
+    public static void killServer(String ip) {
+        try {
+            queryDockerHttpServer(ip, KILL_SERVER);
+        } catch (Exception ignored) {
+        }
     }
 }

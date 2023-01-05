@@ -89,8 +89,10 @@ public abstract class TimingDockerTask {
                     break;
                 case MBEDTLS:
                     // do not enforce client auth
-                    // (ignored or known in all versions)
-                    additionalParameters.add("auth_mode=none");
+                    // (ignored or known in all versions except listed below)
+                    if(!version.equals("1.2.0") && !version.equals("1.2.1")) {
+                        additionalParameters.add("auth_mode=none");
+                    }
                     break;
             }
         }
