@@ -5,6 +5,8 @@
 package de.rub.nds.timingdockerevaluator.util;
 
 import java.util.Comparator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  *
@@ -44,6 +46,20 @@ public class LibraryInstanceComparator implements Comparator<LibraryInstance> {
                 String string1Suffix = getStringSuffixOfString(instance1Parts[i]);
                 String string2Suffix = getStringSuffixOfString(instance2Parts[i]);
                 if(!string1Suffix.equals(string2Suffix)) {
+                    Integer numberString1 = getNumberOfString(string1Suffix);
+                    Integer numberString2 = getNumberOfString(string2Suffix);
+                    if(numberString1 != null && numberString2 != null && string1Suffix.replace(numberString1.toString(), "").equals(string2Suffix.replace(numberString2.toString(), ""))) {
+                       //attempt to handle as v.v.v-alphaX structure 
+                       return numberString1.compareTo(numberString2);
+                    }
+                    
+                    // ensure that 0.7 appears after 0.7-alpha
+                    if(string1Suffix.isEmpty()) {
+                        return 1;
+                    } else if(string2Suffix.isEmpty()) {
+                        return -1;
+                    }
+                    // fall back to string compare
                     return string1Suffix.compareTo(string2Suffix);
                 }
             }
@@ -85,6 +101,15 @@ public class LibraryInstanceComparator implements Comparator<LibraryInstance> {
             }
         }
         return suffix;
+    }
+    
+    private Integer getNumberOfString(String input) {
+        Pattern pattern = Pattern.compile("[0-9]+");
+        Matcher matcher = pattern.matcher(input);
+        if(matcher.find()) {
+            return Integer.valueOf(matcher.group(0));
+        }
+        return null;
     }
 
 }

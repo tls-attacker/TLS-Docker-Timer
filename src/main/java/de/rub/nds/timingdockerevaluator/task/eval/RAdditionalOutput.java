@@ -30,7 +30,7 @@ public class RAdditionalOutput {
             String content = bufferedReader.readLine();
             // Additional, maxF1a, maxPower, decisionIndex
             String[] parts = content.split(",");
-            return new RAdditionalOutput(additionalROutput.getName().replace(".RDATA.add", ""), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
+            return new RAdditionalOutput(additionalROutput.getName().replace(".csv-postEval-.RDATA.add", ""), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
         } catch (IOException ex) {
             throw new RuntimeException("Attempted to access non-existing result file");
         } finally {

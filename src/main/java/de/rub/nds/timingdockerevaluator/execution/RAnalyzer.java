@@ -12,14 +12,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.StringJoiner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +31,29 @@ public class RAnalyzer {
     private static int processedCsvs = 0;
     private static long startedTimestamp = 0;
     
+    private static final String[] ORDERED_VECTORS = new String[] {
+        // BB
+        "0x00_on_the_next_to_last_position_(|PMS|_=_1)vsCorrectly_formatted_PKCS#1_PMS_message",
+        "0x00_on_the_next_to_last_position_(|PMS|_=_1)vsInvalid_TLS_version_in_PMS",
+        "0x00_on_the_next_to_last_position_(|PMS|_=_1)vsWrong_second_byte_(0x02_set_to_0x17)",
+        "Invalid_TLS_version_in_PMSvsCorrectly_formatted_PKCS#1_PMS_message",
+        "No_0x00_in_messagevs0x00_on_the_next_to_last_position_(|PMS|_=_1)",
+        "No_0x00_in_messagevsCorrectly_formatted_PKCS#1_PMS_message",
+        "No_0x00_in_messagevsInvalid_TLS_version_in_PMS",
+        "No_0x00_in_messagevsWrong_second_byte_(0x02_set_to_0x17)",
+        "Wrong_second_byte_(0x02_set_to_0x17)vsCorrectly_formatted_PKCS#1_PMS_message",
+        "Wrong_second_byte_(0x02_set_to_0x17)vsInvalid_TLS_version_in_PMS",
+        // PO
+        "InvPadValMac-[0]-0-59vsPlain_FF",
+        "InvPadValMac-[0]-0-59vsPlain_XF_(0xXF=#padding_bytes)",
+        "InvPadValMac-[0]-0-59vsValPadInvMac-[0]-0-59",
+        "Plain_FFvsPlain_XF_(0xXF=#padding_bytes)",
+        "Plain_FFvsValPadInvMac-[0]-0-59",
+        "ValPadInvMac-[0]-0-59vsPlain_XF_(0xXF=#padding_bytes)",
+        // L13
+        "NO_PADDINGvsLONG_PADDING"
+    }; 
+    
     public static void analyzeGivenCSVs(TimingDockerEvaluatorCommandConfig evaluationConfig) {
         provideRResults(evaluationConfig);
         printResults(evaluationConfig.getCsvInput(), evaluationConfig);
@@ -42,28 +62,12 @@ public class RAnalyzer {
     public static void printResults(String path, TimingDockerEvaluatorCommandConfig evaluationConfig) throws RuntimeException {
         List<File> additionalRDataFiles = findRDataAdditionalFiles(path);
         Map<LibraryInstance, RDataFileGroup> libraryRDataMap = buildLibraryAdditionalDataMap(additionalRDataFiles);
-        Set<String> vectorNames = new HashSet<>();
-        for (LibraryInstance listedInstance : libraryRDataMap.keySet()) {
-            vectorNames.addAll(libraryRDataMap.get(listedInstance).getAdditionalRData().stream().map(RAdditionalOutput::getVectorName).collect(Collectors.toList()));
-        }
-        List<String> sortedVectorNames = sortVectorsByAttack(vectorNames);
+        List<String> sortedVectorNames = Arrays.asList(ORDERED_VECTORS);
         List<LibraryInstance> sortedLibraryInstances = new LinkedList<>(libraryRDataMap.keySet());
         sortedLibraryInstances.sort(new LibraryInstanceComparator());
         printResultData(sortedLibraryInstances, sortedVectorNames, libraryRDataMap, evaluationConfig);
         printF1AData(sortedLibraryInstances, sortedVectorNames, libraryRDataMap, evaluationConfig);
         printDecisionCounters(sortedLibraryInstances, sortedVectorNames, libraryRDataMap);
-    }
-
-    private static List<String> sortVectorsByAttack(Set<String> vectorNames) {
-        List<String> sortedVectorNames = new LinkedList<>();
-        sortedVectorNames.addAll(vectorNames);
-        Collections.sort(sortedVectorNames);
-        String entry = sortedVectorNames.stream().filter(vector -> vector.contains("LONG_PADDING")).findFirst().orElse(null);
-        if(entry != null) {
-            sortedVectorNames.remove(entry);
-            sortedVectorNames.add(entry);
-        }
-        return sortedVectorNames;
     }
 
     private static void provideRResults(TimingDockerEvaluatorCommandConfig evaluationConfig) throws RuntimeException {
