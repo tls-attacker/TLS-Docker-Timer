@@ -37,10 +37,19 @@ public class LibraryInstanceComparator implements Comparator<LibraryInstance> {
             } catch (NumberFormatException numForm) {
                 int inst1Prefix = getNumberPrefixOfString(instance1Parts[i]);
                 int inst2Prefix = getNumberPrefixOfString(instance2Parts[i]);
-                if(inst1Prefix < inst2Prefix || inst2Prefix == -1) {
+
+                // compare version number prefix
+                if(inst1Prefix < inst2Prefix && inst1Prefix > -1) {
                     return -1;
-                } else if (inst1Prefix > inst2Prefix) {
+                } else if (inst1Prefix > inst2Prefix && inst2Prefix > -1) {
                     return 1;
+                }
+                
+                // check if one was number prefix and other wasn't
+                if(inst1Prefix == -1 && inst2Prefix != -1) {
+                    return 1;
+                } else if(inst2Prefix == -1 && inst1Prefix != -1) {
+                    return -1;
                 }
                 
                 String string1Suffix = getStringSuffixOfString(instance1Parts[i]);
@@ -54,12 +63,18 @@ public class LibraryInstanceComparator implements Comparator<LibraryInstance> {
                     }
                     
                     // ensure that 0.7 appears after 0.7-alpha
-                    if(string1Suffix.isEmpty()) {
+                    if(string1Suffix.isEmpty() && string2Suffix.contains("-")) {
                         return 1;
-                    } else if(string2Suffix.isEmpty()) {
+                    } else if(string2Suffix.isEmpty() && string1Suffix.contains("-")) {
                         return -1;
                     }
-                    // fall back to string compare
+                    
+                    // ensure that versions with -stable appear after a,b,c,...
+                    if(string1Suffix.equals("-stable") && !string2Suffix.equals("-stable")) {
+                        return 1;
+                    } else if(string2Suffix.equals("-stable") && !string1Suffix.equals("-stable")) {
+                        return -1;
+                    }
                     return string1Suffix.compareTo(string2Suffix);
                 }
             }
