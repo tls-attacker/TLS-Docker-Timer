@@ -109,6 +109,9 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-targetManagement"}, description = "How to handle server inside docker container")
     private DockerTargetManagement targetManagement = DockerTargetManagement.PORT_SWITCHING;
     
+    @Parameter(names = {"-testVectors"}, description = "Test selected vectors step by step")
+    private boolean onlyTestVectors = false;
+    
     public String getSpecificLibrary() {
         return specificLibrary;
     }
@@ -335,5 +338,13 @@ public class TimingDockerEvaluatorCommandConfig {
     
     public boolean additionalContainerActionsRequired() {
         return getTargetManagement() != DockerTargetManagement.KEEP_ALIVE;
+    }
+
+    public boolean isOnlyTestVectors() {
+        return onlyTestVectors;
+    }
+
+    public void setOnlyTestVectors(boolean onlyTestVectors) {
+        this.onlyTestVectors = onlyTestVectors;
     }
 }

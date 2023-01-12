@@ -221,12 +221,16 @@ public class EvaluationTask extends TimingDockerTask {
     public void executeSubtasks() {
         for (EvaluationSubtask subtask : subtasks) {
             subtask.adjustScope(serverReport);
-            EvaluationSubtaskReport report = subtask.evaluate();
-            ExecutionWatcher.getReference().finishedSubtask(report);
-            SubtaskReportWriter.writeReport(report, getRunIteration(), getEvaluationConfig().getRuns() > 1);
-            if (report.isFailed()) {
-                ExecutionWatcher.getReference().abortedSubtask(report.getTaskName(), report.getTargetName());
-            }
+            if(getEvaluationConfig().isOnlyTestVectors()) {
+                subtask.testVectors();
+            } else {
+                EvaluationSubtaskReport report = subtask.evaluate();
+                ExecutionWatcher.getReference().finishedSubtask(report);
+                SubtaskReportWriter.writeReport(report, getRunIteration(), getEvaluationConfig().getRuns() > 1);
+                if (report.isFailed()) {
+                    ExecutionWatcher.getReference().abortedSubtask(report.getTaskName(), report.getTargetName());
+                }
+            }  
         }
     }
 

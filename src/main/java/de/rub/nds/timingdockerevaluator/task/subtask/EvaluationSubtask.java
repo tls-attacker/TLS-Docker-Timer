@@ -50,21 +50,19 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Scanner;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-
-
 public abstract class EvaluationSubtask {
-    
+
     private final static Random notReallyRandom = new Random(System.currentTimeMillis());
     private static final Logger LOGGER = LogManager.getLogger();
     private static final int MAX_FAILURES_IN_A_ROW = 15;
     private static final int UNDETECTABLE_LIMIT = 150;
     private static final int MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART = 5;
-    
-    
+
     private final Map<String, List<Long>> runningMeasurements = new HashMap<>();
     private final Map<String, List<Long>> finishedMeasurements = new HashMap<>();
     protected int measurementsDone;
@@ -74,18 +72,18 @@ public abstract class EvaluationSubtask {
     private final EvaluationSubtaskReport report;
     protected final TimingDockerEvaluatorCommandConfig evaluationConfig;
     protected final EvaluationTask parentTask;
-    
+
     private final int targetPort;
-    private final String targetIp; 
-    
+    private final String targetIp;
+
     protected int subtaskWorkflowFails;
-    
+
     protected ProtocolVersion version;
     protected CipherSuite cipherSuite;
-    
+
     private ServerReport serverReport;
     private boolean switchedToRestarting = false;
-    
+
     public EvaluationSubtask(String taskName, String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
         this.subtaskName = taskName;
         this.targetName = targetName;
@@ -97,19 +95,16 @@ public abstract class EvaluationSubtask {
         measurementsDone = 0;
         nextMaximum = evaluationConfig.getMeasurementsPerStep();
     }
-    
+
     public abstract boolean isApplicable();
-    
+
     public void adjustScope(ServerReport serverReport) {
         this.serverReport = serverReport;
     }
-    
+
     public EvaluationSubtaskReport evaluate() {
         LOGGER.info("Starting evaluation of {} - Target: {}", getSubtaskName(), getTargetName());
-        List<String> subtaskIdentifiers = getSubtaskIdentifiers();
-        report.setIdentifiers(subtaskIdentifiers);
-        report.setCipherSuite(cipherSuite);
-        report.setProtocolVersion(version);
+        List<String> subtaskIdentifiers = prepareSubtask();
         LOGGER.info("Subtask {} for {} has {} identifiers", getSubtaskName(), getTargetName(), subtaskIdentifiers.size());
         String baselineIdentifier = getBaselineIdentifier();
         boolean keepMeasuring = true;
@@ -117,7 +112,7 @@ public abstract class EvaluationSubtask {
             int[] executionPlan = getExecutionPlan(subtaskIdentifiers.size(), evaluationConfig.getMeasurementsPerStep());
             int failedInARow = 0;
             int unreachableInARow = 0;
-            for(int i = 0; i < executionPlan.length; i++) {
+            for (int i = 0; i < executionPlan.length; i++) {
                 try {
                     TimingBenchmark.print("Starting next measurement");
                     Long newMeasurement = measure(subtaskIdentifiers.get(executionPlan[i]));
@@ -137,21 +132,21 @@ public abstract class EvaluationSubtask {
                     unreachableInARow++;
                     failedInARow++;
                     LOGGER.error("Target {} was unreachable", getTargetName());
-                    if(unreachableInARow == MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART && (evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_CONTAINTER || evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_SERVER)) {
+                    if (unreachableInARow == MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART && (evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_CONTAINTER || evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_SERVER)) {
                         LOGGER.warn("Failed to reach {} {} times - switching to restarting mode", getTargetName(), MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART);
                         switchedToRestarting = true;
                     }
                 } catch (Exception ex) {
                     failedInARow++;
                     report.genericFailure();
-                    LOGGER.error("Failed to measure {} - Target: {} will retry", getSubtaskName(), getTargetName(),ex);
+                    LOGGER.error("Failed to measure {} - Target: {} will retry", getSubtaskName(), getTargetName(), ex);
                 }
-                
-                if(failedInARow == MAX_FAILURES_IN_A_ROW) {
+
+                if (failedInARow == MAX_FAILURES_IN_A_ROW) {
                     LOGGER.error("Measuring aborted due to frequent failures - Subtask {} - Target: {}", getSubtaskName(), getTargetName());
                     report.setFailed(true);
                     return report;
-                } else if(report.getUndetectableCount()> UNDETECTABLE_LIMIT) {
+                } else if (report.getUndetectableCount() > UNDETECTABLE_LIMIT) {
                     LOGGER.error("Measuring aborted since socket was {} times not closed and no alert was sent - Subtask {} - Target: {}", UNDETECTABLE_LIMIT, getSubtaskName(), getTargetName());
                     report.setFailed(true);
                     report.setUndetectable(true);
@@ -162,29 +157,61 @@ public abstract class EvaluationSubtask {
             LOGGER.info("Subtask {} completed {} measurements for {}", getSubtaskName(), measurementsDone, getTargetName());
             RScriptManager scriptManager = new RScriptManager(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations(), parentTask);
             scriptManager.prepareFiles(getSubtaskName(), getTargetName());
-            
-            if(!evaluationConfig.isSkipR()) {
-                List<VectorEvaluationTask> executedEvalTasks = scriptManager.testWithR(measurementsDone); 
+
+            if (!evaluationConfig.isSkipR()) {
+                List<VectorEvaluationTask> executedEvalTasks = scriptManager.testWithR(measurementsDone);
                 processAnalysisResults(subtaskIdentifiers, executedEvalTasks);
-            }       
-            if(subtaskIdentifiers.size() <= 1 || measurementsDone >= evaluationConfig.getTotalMeasurements()) {
+            }
+            if (subtaskIdentifiers.size() <= 1 || measurementsDone >= evaluationConfig.getTotalMeasurements()) {
                 keepMeasuring = false;
             }
-        } while(keepMeasuring);
+        } while (keepMeasuring);
         report.taskEnded();
         return report;
     }
-    
+
+    private List<String> prepareSubtask() {
+        List<String> subtaskIdentifiers = getSubtaskIdentifiers();
+        report.setIdentifiers(subtaskIdentifiers);
+        report.setCipherSuite(cipherSuite);
+        report.setProtocolVersion(version);
+        return subtaskIdentifiers;
+    }
+
+    public void testVectors() {
+        List<String> subtaskIdentifiers = prepareSubtask();
+        while (true) {
+            LOGGER.info("Select vector index:");
+            for (int i = 0; i < subtaskIdentifiers.size(); i++) {
+                LOGGER.info("[{}] {}", i, subtaskIdentifiers.get(i));
+            }
+            LOGGER.info("[-1] Exit tests for {}", getSubtaskName());
+            Scanner sc = new Scanner(System.in);
+            int selected = sc.nextInt();
+            if (selected == -1) {
+                return;
+            }
+            try {
+                Long newMeasurement = measure(subtaskIdentifiers.get(selected));
+                LOGGER.info("********************************************");
+                LOGGER.info("Measured vector {} ({})", subtaskIdentifiers.get(selected), newMeasurement);
+                LOGGER.info("********************************************");
+            } catch (Exception ex) {
+                LOGGER.error("Measuring failed", ex);
+            }
+        }
+    }
+
     protected void addMeasurement(String identifier, Long measured) {
-        if(!runningMeasurements.containsKey(identifier)) {
+        if (!runningMeasurements.containsKey(identifier)) {
             runningMeasurements.put(identifier, new LinkedList<>());
         }
         runningMeasurements.get(identifier).add(measured);
     }
-    
+
     private void processAnalysisResults(List<String> subtaskIdentifiers, List<VectorEvaluationTask> executedEvalTasks) {
-        for(VectorEvaluationTask task: executedEvalTasks) {
-            switch(task.getExitCode()) {
+        for (VectorEvaluationTask task : executedEvalTasks) {
+            switch (task.getExitCode()) {
                 case 12:
                     LOGGER.info("Found significant difference for {} in comparison to {} - Target: {}", task.getIdentifier1(), task.getIdentifier2(), getTargetName());
                     subtaskIdentifiers.remove(task.getIdentifier2());
@@ -203,20 +230,20 @@ public abstract class EvaluationSubtask {
             }
         }
     }
-    
+
     protected abstract List<String> getSubtaskIdentifiers();
-    
+
     protected abstract String getBaselineIdentifier();
-    
+
     protected abstract Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException;
-    
+
     public Map<String, List<Long>> getRunningMeasurements() {
         return runningMeasurements;
     }
-    
+
     private int[] getExecutionPlan(int identifierCount, int nextMeasurementsPerType) {
         int[] executionPlan = new int[identifierCount * nextMeasurementsPerType];
-        for(int i = 0; i < executionPlan.length; i++) {
+        for (int i = 0; i < executionPlan.length; i++) {
             executionPlan[i] = notReallyRandom.nextInt(identifierCount);
         }
         return executionPlan;
@@ -237,44 +264,44 @@ public abstract class EvaluationSubtask {
     public String getTargetIp() {
         return targetIp;
     }
-    
+
     protected Config getBaseConfig(ProtocolVersion version, CipherSuite cipherSuite) {
         Config config = Config.createConfig();
         config.setDefaultSelectedCipherSuite(cipherSuite);
-        if(cipherSuite.name().contains("ECDH")) {
+        if (cipherSuite.name().contains("ECDH")) {
             config.setAddEllipticCurveExtension(true);
         } else {
             config.setAddEllipticCurveExtension(false);
         }
-        
+
         //ensure nice NamedGroup list
         config.setDefaultClientNamedGroups(Arrays.asList(NamedGroup.values()).stream()
                 .filter(NamedGroup::isCurve)
                 .filter(NamedGroup.getImplemented()::contains)
                 .filter(group -> (group.isStandardCurve() && group.name().contains("SECP")) || group.isTls13())
                 .collect(Collectors.toList()));
-        
+
         //ensure nice SigHashAlgo list
         config.setDefaultClientSupportedSignatureAndHashAlgorithms(Arrays.asList(SignatureAndHashAlgorithm.values()).stream()
                 .filter(SignatureAndHashAlgorithm.getImplemented()::contains)
                 .filter(algo -> (!algo.name().contains("ANON") && !algo.name().contains("_NONE")))
                 .collect(Collectors.toList()));
-        
+
         //ensure config filter is also applied if necessary
-        if(!serverReport.getConfigProfileIdentifier().equals(DefaultConfigProfile.UNFILTERED.getIdentifier())) {
-            for(ConfigFilterProfile filterProfile: DefaultConfigProfile.getTls12ConfigProfiles()) {
-                if(filterProfile.getIdentifier().equals(serverReport.getConfigProfileIdentifier())) {
+        if (!serverReport.getConfigProfileIdentifier().equals(DefaultConfigProfile.UNFILTERED.getIdentifier())) {
+            for (ConfigFilterProfile filterProfile : DefaultConfigProfile.getTls12ConfigProfiles()) {
+                if (filterProfile.getIdentifier().equals(serverReport.getConfigProfileIdentifier())) {
                     ConfigFilter.applyFilterProfile(config, filterProfile.getConfigFilterTypes());
                     break;
                 }
             }
         }
-        
+
         config.setDefaultClientSupportedCipherSuites(cipherSuite);
         config.setDefaultRunningMode(RunningModeType.CLIENT);
         config.getDefaultClientConnection().setHostname(targetIp);
         int dynamicPort = targetPort;
-        if(parentTask.isPortSwitchEnabled()) {
+        if (parentTask.isPortSwitchEnabled()) {
             dynamicPort = HttpUtil.getCurrentPort(targetIp, targetPort);
         }
         config.getDefaultClientConnection().setPort(dynamicPort);
@@ -285,17 +312,17 @@ public abstract class EvaluationSubtask {
         config.getDefaultClientConnection().setTimeout(evaluationConfig.getTimeout());
         config.getDefaultClientConnection().setFirstTimeout(evaluationConfig.getTimeout());
         config.getDefaultClientConnection().setConnectionTimeout(evaluationConfig.getTimeout() + 1000);
-        if(evaluationConfig.isUseProxy()) {
+        if (evaluationConfig.isUseProxy()) {
             config.getDefaultClientConnection().setTransportHandlerType(TransportHandlerType.TCP_PROXY_TIMING);
         } else {
             config.getDefaultClientConnection().setTransportHandlerType(TransportHandlerType.TCP_TIMING);
         }
         config.setWorkflowExecutorShouldClose(false);
         config.setHighestProtocolVersion(version);
-        
+
         return config;
     }
-    
+
     protected Long getMeasurement(final State state) {
         Long lastMeasurement;
         if (evaluationConfig.isUseProxy()) {
@@ -305,7 +332,7 @@ public abstract class EvaluationSubtask {
         }
         return lastMeasurement;
     }
-    
+
     public ProtocolVersion determineVersion(ServerReport serverReport) {
         if (serverReport.getVersions() != null && !serverReport.getVersions().isEmpty()) {
             if (serverReport.getVersions().contains(ProtocolVersion.TLS12)) {
@@ -318,34 +345,33 @@ public abstract class EvaluationSubtask {
         }
         return null;
     }
-    
+
     /*
         Note: GenericReceive would allow us to measure a possible time difference
         between an alert and a subsequent TCP close/rst. However, we are currently
         measuring the time between sending and receiving the first byte in response,
         which would hide this difference anyway. Hence, we stick to a specific
         ReceiveAction to gain a speedup.
-    */
+     */
     protected void setSpecificReceiveAction(WorkflowTrace workflowTrace) {
-        TlsAction lastAction = workflowTrace.getTlsActions().get(workflowTrace.getTlsActions().size() -1);
-        if(lastAction instanceof GenericReceiveAction) {
+        TlsAction lastAction = workflowTrace.getTlsActions().get(workflowTrace.getTlsActions().size() - 1);
+        if (lastAction instanceof GenericReceiveAction) {
             workflowTrace.getTlsActions().remove(lastAction);
             workflowTrace.addTlsAction(new ReceiveAction(new AlertMessage()));
-        } else if(!(lastAction instanceof ReceiveAction)) {
+        } else if (!(lastAction instanceof ReceiveAction)) {
             LOGGER.warn("Last Action for {} is not a ReceiveAction and not a GenericReceive");
         }
     }
-    
+
     protected void handleClientAuthentication(WorkflowTrace workflowTrace, Config config) {
-        SendAction clientSecondFlight = (SendAction)WorkflowTraceUtil.getFirstSendingActionForMessage(HandshakeMessageType.CLIENT_KEY_EXCHANGE, workflowTrace);
-        if(serverReport.getCcaSupported()) {
-            if(workflowTrace.getFirstReceivingAction() instanceof ReceiveAction) {
-                List<ProtocolMessage> expectedMessages = ((ReceiveAction)workflowTrace.getFirstReceivingAction()).getExpectedMessages();
+        SendAction clientSecondFlight = (SendAction) WorkflowTraceUtil.getFirstSendingActionForMessage(HandshakeMessageType.CLIENT_KEY_EXCHANGE, workflowTrace);
+        if (serverReport.getCcaSupported()) {
+            if (workflowTrace.getFirstReceivingAction() instanceof ReceiveAction) {
+                List<ProtocolMessage> expectedMessages = ((ReceiveAction) workflowTrace.getFirstReceivingAction()).getExpectedMessages();
                 expectedMessages.add(expectedMessages.size() - 2, new CertificateRequestMessage());
             }
-            
-            
-            if(serverReport.getCcaRequired()) {
+
+            if (serverReport.getCcaRequired()) {
                 clientSecondFlight.getSendMessages().add(0, new CertificateMessage(config));
                 clientSecondFlight.getSendMessages().add(2, new CertificateVerifyMessage(config));
             } else {
@@ -353,10 +379,10 @@ public abstract class EvaluationSubtask {
                 emptyCert.setCertificatesListBytes(Modifiable.explicit(new byte[0]));
                 clientSecondFlight.getSendMessages().add(0, emptyCert);
             }
-            
+
         }
     }
-    
+
     /*
      * Some implementations do not send an alert and do not close the connection.
      * Our tests are unable to exploit these even if an oracle may be present.
@@ -364,39 +390,39 @@ public abstract class EvaluationSubtask {
     protected boolean oraclePossible(State executedState) {
         boolean gotAlert = WorkflowTraceUtil.didReceiveMessage(ProtocolMessageType.ALERT, executedState.getWorkflowTrace());
         SocketState socketState = (((ClientTcpTransportHandler) (executedState.getTlsContext().getTransportHandler())).getSocketState());
-        
+
         boolean isClosed = socketState == SocketState.CLOSED || socketState == SocketState.IO_EXCEPTION || socketState == SocketState.TIMEOUT || socketState == SocketState.PEER_WRITE_CLOSED;
         return gotAlert || isClosed;
     }
-    
+
     protected void postExecutionCheck(State executedState, WorkflowExecutor executor) throws UndetectableOracleException, WorkflowTraceFailedEarlyException {
         boolean workflowTraceSufficientlyExecuted = workflowTraceSufficientlyExecuted(executedState.getWorkflowTrace());
         boolean oracleDetectable = oraclePossible(executedState);
         executor.closeConnection();
-        
-        if(!workflowTraceSufficientlyExecuted) {
+
+        if (!workflowTraceSufficientlyExecuted) {
             throw new WorkflowTraceFailedEarlyException();
-        } else if(!oracleDetectable) {
+        } else if (!oracleDetectable) {
             throw new UndetectableOracleException();
         }
     }
-    
+
     protected void prepareExecutor(WorkflowExecutor executor) {
-        if(evaluationConfig.additionalContainerActionsRequired()) {
+        if (evaluationConfig.additionalContainerActionsRequired()) {
             executor.setBeforeTransportPreInitCallback(parentTask.getRestartCallable());
         }
     }
-    
+
     protected void runExecutor(final State state) throws WorkflowTraceFailedEarlyException, UndetectableOracleException, WorkflowExecutionException {
         final WorkflowExecutor executor = (WorkflowExecutor) new DefaultWorkflowExecutor(state);
         prepareExecutor(executor);
         executor.executeWorkflow();
         postExecutionCheck(state, executor);
     }
-    
+
     protected boolean isCompareAllVectorCombinations() {
         return false;
     }
-    
+
     protected abstract boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace);
 }
