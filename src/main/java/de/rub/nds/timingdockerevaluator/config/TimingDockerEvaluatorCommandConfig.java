@@ -6,6 +6,14 @@ import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
 
 public class TimingDockerEvaluatorCommandConfig {
 
+    public boolean isGenericCsvs() {
+        return genericCsvs;
+    }
+
+    public void setGenericCsvs(boolean genericCsvs) {
+        this.genericCsvs = genericCsvs;
+    }
+
     public boolean isBenchmark() {
         return benchmark;
     }
@@ -90,6 +98,9 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-csvInput"}, description = "Look for result csv's in the specified directory and provide R output")
     private String csvInput = null;
+    
+    @Parameter(names = {"-genericCsvs"}, description = "Don't resolve library instances and run directly on csv files")
+    private boolean genericCsvs = false;
     
     @Parameter(names = {"-rAnalyzedInput"}, description = "Look for R results in the specified directory and print the results")
     private String rAnalyzedInput = null;

@@ -113,6 +113,9 @@ public abstract class EvaluationSubtask {
             int failedInARow = 0;
             int unreachableInARow = 0;
             for (int i = 0; i < executionPlan.length; i++) {
+                if(i % 100000 == 0) {
+                    LOGGER.info("Progess: {}/{} for {}", i, executionPlan.length, getTargetName());
+                }
                 try {
                     TimingBenchmark.print("Starting next measurement");
                     Long newMeasurement = measure(subtaskIdentifiers.get(executionPlan[i]));

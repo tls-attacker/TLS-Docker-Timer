@@ -56,7 +56,9 @@ public class RAnalyzer {
     
     public static void analyzeGivenCSVs(TimingDockerEvaluatorCommandConfig evaluationConfig) {
         provideRResults(evaluationConfig);
-        printResults(evaluationConfig.getCsvInput(), evaluationConfig);
+        if(!evaluationConfig.isGenericCsvs()) {
+            printResults(evaluationConfig.getCsvInput(), evaluationConfig);
+        }
     }
 
     public static void printResults(String path, TimingDockerEvaluatorCommandConfig evaluationConfig) throws RuntimeException {
@@ -75,9 +77,35 @@ public class RAnalyzer {
         findCSVs(csvFiles, evaluationConfig);
         csvsToProcess = csvFiles.size();
         LOGGER.info("Found {} CSVs", csvsToProcess);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(evaluationConfig.getThreads());
+        if(evaluationConfig.isGenericCsvs()) {
+            analyzeGenericCsvs(evaluationConfig, executor, csvFiles);
+        } else {
+            analyzeSpecificCsvs(csvFiles, evaluationConfig, executor);
+        }
+    }
+
+    private static void analyzeGenericCsvs(TimingDockerEvaluatorCommandConfig evaluationConfig, ThreadPoolExecutor executor, List<File> csvFiles) {
+        LOGGER.info("Deploying tasks...");
+        startedTimestamp = System.currentTimeMillis();
+        for(File csvFile : csvFiles) {
+            RAnalyzerTask genericCsvTask = new RAnalyzerTask(evaluationConfig, csvFile);
+            executor.execute(() -> {
+                    genericCsvTask.execute();
+                    finishedCsv();
+            });
+        }
+        executor.shutdown();
+        try {
+            executor.awaitTermination(20, TimeUnit.DAYS);
+        } catch (InterruptedException ex) {
+        }
+        LOGGER.info("Determined all R outputs");
+    }
+
+    private static void analyzeSpecificCsvs(List<File> csvFiles, TimingDockerEvaluatorCommandConfig evaluationConfig, ThreadPoolExecutor executor) {
         Map<LibraryInstance, CsvFileGroup> libraryResultsMap = buildLibraryResultsMap(csvFiles);
         LOGGER.info("Found {} library instances", libraryResultsMap.keySet().size());
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(evaluationConfig.getThreads());
         List<RAnalyzerTask> libraryTasks = new LinkedList<>();
         computeROutputs(libraryResultsMap, evaluationConfig, libraryTasks, executor);
     }

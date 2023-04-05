@@ -22,26 +22,21 @@ data <- read.csv(file = inputFile)
 namedData <- data %>% mutate(V1 = recode(V1, "BASELINE" = "1"))  %>%  mutate(V1 = recode(V1, "MODIFIED" = "2"))
 
 k <- 10
-n <- measurements / k #c(10000,100000, 10000schritte)
-B <- 10000 #00
-repe <- 1000 #00
+n <- measurements
+m <- n/k #c(10000,100000, 10000schritte)
+B <- 10000
+repe <- 1000
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
-autotest <- function(data, n, B, k, repe)
+autotest <- function(data, n, B, repe,m)
 {
   #Daten ordnen
   bb1 <- data %>% select(V1,V2) %>% filter(V1=="1")
   bb2 <- data %>% select(V1,V2) %>% filter(V1=="2")
-  #subsamples generieren
-  subs1 <- list()
-  subs2 <- list()
-  for(i in 1:k){
-    subs1[[i]] <- sample(bb1$V2,n,replace=TRUE)
-    subs2[[i]] <- sample(bb2$V2,n,replace=TRUE)
-  }
-  q1 <- replicate(B,bootstrap1(n,subs1,k))
-  q2 <- replicate(B,bootstrap1(n,subs2,k))
+  #Änderung1
+  q1 <- replicate(B,bootstrap1(as.numeric(bb1$V2),m))
+  q2 <- replicate(B,bootstrap1(as.numeric(bb2$V2),m))
   maxq1 <- apply(q1 ,1, quantile , probs = 0.99 )
   maxq2 <- apply(q2 ,1, quantile , probs = 0.99 )
   maxqs <- matrix(c(maxq1,maxq2), nrow=9, ncol=2)
@@ -84,17 +79,16 @@ test <- function(td1,td2){
   t1 <- abs(q1-q2)
   return(t1)
 }
-bootstrap1 <- function(n,dat,k)
+bootstrap1 <- function(dat,m)
 {
-  s <- sort(sample(seq(1,k, 1),2, replace=FALSE))
-  x1 <- sample(dat[[s[1]]], n, replace=TRUE)
-  x2 <- sample(dat[[s[2]]], n, replace=TRUE)
+  x1 <- sample(dat, m, replace=TRUE)
+  x2 <- sample(dat, m, replace=TRUE)
   q1 <- hdquantile(x1, probs=seq(0.1,0.9,0.1), names=FALSE)
   q2 <- hdquantile(x2, probs=seq(0.1,0.9,0.1), names=FALSE)
   test <- abs(q1-q2)
   return(test)
 }
-output <- autotest(namedData,n,B, k, repe)
+output <- autotest(namedData,n,B, repe,m)
 
 f1a1 <- which((output/repe)[1,]<=0.02)
 f1a2 <- which((output/repe)[2,]<=0.02)
