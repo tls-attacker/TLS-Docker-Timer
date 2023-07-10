@@ -1,5 +1,6 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
+import de.rub.nds.modifiablevariable.util.ArrayConverter;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
@@ -16,6 +17,7 @@ import de.rub.nds.tlsattacker.core.workflow.WorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceiveAction;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceivingAction;
+import de.rub.nds.tlsbreaker.breakercommons.config.delegate.ProxyDelegate;
 import de.rub.nds.tlsbreaker.lucky13.config.Lucky13CommandConfig;
 import de.rub.nds.tlsbreaker.lucky13.impl.Lucky13Attacker;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
@@ -62,6 +64,8 @@ public class Lucky13Subtask extends EvaluationSubtask {
     @Override
     protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException {
         Lucky13CommandConfig lucky13commandConfig = new Lucky13CommandConfig(new GeneralDelegate());
+        lucky13commandConfig.getDelegate(ProxyDelegate.class).setProxyControl(evaluationConfig.getProxyIp() + ":" + evaluationConfig.getProxyControlPort());
+        lucky13commandConfig.getDelegate(ProxyDelegate.class).setProxyData(evaluationConfig.getProxyIp() + ":" + evaluationConfig.getProxyDataPort());
         lucky13commandConfig.getDelegate(ClientDelegate.class).setHost(getTargetIp() + ":" + getTargetPort());
         Lucky13Attacker attacker = new Lucky13Attacker(lucky13commandConfig, getBaseConfig(version, cipherSuite));
         

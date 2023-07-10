@@ -45,6 +45,11 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
             return AlgorithmResolver.getCipherType(cipher) == CipherType.BLOCK;
             }).findFirst().orElse(null);
         }
+        CipherSuite enforcedSuite = parseEnforcedCipherSuite();
+        if(enforcedSuite != null) {
+            cipherSuite = enforcedSuite;
+        }
+        
         version = determineVersion(serverReport);
         if (version != null && cipherSuite != null) {
             vectors = (List<PaddingVector>) new VeryShortPaddingGenerator().getVectors(cipherSuite, version);

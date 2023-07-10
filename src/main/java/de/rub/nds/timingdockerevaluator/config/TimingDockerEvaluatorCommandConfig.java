@@ -6,6 +6,30 @@ import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
 
 public class TimingDockerEvaluatorCommandConfig {
 
+    public int getBloat() {
+        return bloat;
+    }
+
+    public void setBloat(int bloat) {
+        this.bloat = bloat;
+    }
+
+    public boolean isNeverStop() {
+        return neverStop;
+    }
+
+    public void setNeverStop(boolean neverStop) {
+        this.neverStop = neverStop;
+    }
+
+    public boolean isExtractQuantileDetails() {
+        return extractQuantileDetails;
+    }
+
+    public void setExtractQuantileDetails(boolean extractQuantileDetails) {
+        this.extractQuantileDetails = extractQuantileDetails;
+    }
+
     public boolean isGenericCsvs() {
         return genericCsvs;
     }
@@ -31,10 +55,10 @@ public class TimingDockerEvaluatorCommandConfig {
     }
    
     @Parameter(names = "-i", description = "Number of measurements per step")
-    private int measurementsPerStep = 10000;
+    private int measurementsPerStep = 500000;
     
     @Parameter(names = "-n", description = "Number of measurements overall")
-    private int totalMeasurements = 100000;
+    private int totalMeasurements = 500000;
     
     @Parameter(names = {"-threads", "-t"}, description = "Number of threads to use for evaluation (= docker containers to evaluate in parallel)")
     private int threads = 1;
@@ -42,7 +66,7 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-library", "-l"}, description = "A specific library/libraries to filter for (use comma without blankspace for multiple)")
     private String specificLibrary = null;
     
-    @Parameter(names = {"-version", "-v"}, description = "A specific version to filter for, requires a library (use comma without blankspace for multiple)")
+    @Parameter(names = {"-version", "-v"}, description = "A specific version to filter for, requires a library (use comma without blankspace for multiple, toLowerCase() will be applied)")
     private String specificVersion = null;
     
     @Parameter(names = {"-baseVersion", "-b"}, description = "A base version to match using .contains() (use comma without blankspace for multiple)")
@@ -68,6 +92,9 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = "-proxyDataPort", description = "Proxy data port")
     private int proxyDataPort = 5555;
+    
+    @Parameter(names = "-proxyIp", description = "Proxy IP")
+    private String proxyIp = "127.0.0.1";
     
     @Parameter(names = "-proxy", description = "Use proxy (127.0.0.1) for measuring")
     private boolean useProxy = false;
@@ -122,6 +149,29 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-testVectors"}, description = "Test selected vectors step by step")
     private boolean onlyTestVectors = false;
+    
+    @Parameter(names = {"-quantileDetails"}, description = "Extract details on quantiles of analyzed data")
+    private boolean extractQuantileDetails = false;
+    
+    @Parameter(names = {"-rscript"}, description = "Specify path to R Script")
+    private String pathToR = null;
+    
+    @Parameter(names = {"-cipher"}, description = "Specify cipher to use in tests")
+    private String enforcedCipher = null;
+    
+    @Parameter(names = {"-neverStop"}, description = "Keep evaluating even for frequent connection failures")
+    private boolean neverStop = false;
+    
+    @Parameter(names = {"-writeInEachStep"}, description = "Keep evaluating even for frequent connection failures")
+    private boolean writeInEachStep = false;
+    
+    @Parameter(names = {"-bloat"}, description = "(benchmarking) Create dummy results to bloat the RAM footprint")
+    private int bloat = 0;
+    
+    @Parameter(names = {"-printRAM"}, description = "Keep evaluating even for frequent connection failures")
+    private boolean printRam = false;
+    
+    
     
     public String getSpecificLibrary() {
         return specificLibrary;
@@ -357,5 +407,45 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setOnlyTestVectors(boolean onlyTestVectors) {
         this.onlyTestVectors = onlyTestVectors;
+    }
+
+    public String getPathToR() {
+        return pathToR;
+    }
+
+    public void setPathToR(String pathToR) {
+        this.pathToR = pathToR;
+    }
+
+    public String getEnforcedCipher() {
+        return enforcedCipher;
+    }
+
+    public void setEnforcedCipher(String enforcedCipher) {
+        this.enforcedCipher = enforcedCipher;
+    }
+
+    public boolean isWriteInEachStep() {
+        return writeInEachStep;
+    }
+
+    public void setWriteInEachStep(boolean writeInEachStep) {
+        this.writeInEachStep = writeInEachStep;
+    }
+
+    public String getProxyIp() {
+        return proxyIp;
+    }
+
+    public void setProxyIp(String proxyIp) {
+        this.proxyIp = proxyIp;
+    }
+
+    public boolean isPrintRam() {
+        return printRam;
+    }
+
+    public void setPrintRam(boolean printRam) {
+        this.printRam = printRam;
     }
 }

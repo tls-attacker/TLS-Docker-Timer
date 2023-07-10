@@ -25,7 +25,6 @@ import de.rub.nds.tlsattacker.core.protocol.message.AlertMessage;
 import de.rub.nds.tlsattacker.core.protocol.message.CertificateMessage;
 import de.rub.nds.tlsattacker.core.protocol.message.CertificateRequestMessage;
 import de.rub.nds.tlsattacker.core.protocol.message.CertificateVerifyMessage;
-import de.rub.nds.tlsattacker.core.protocol.message.TlsMessage;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.DefaultWorkflowExecutor;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowExecutor;
@@ -44,7 +43,11 @@ import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
 import de.rub.nds.tlsscanner.serverscanner.selector.ConfigFilter;
 import de.rub.nds.tlsscanner.serverscanner.selector.ConfigFilterProfile;
 import de.rub.nds.tlsscanner.serverscanner.selector.DefaultConfigProfile;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -56,6 +59,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class EvaluationSubtask {
+    
+    private static String lastMemoryFootprint = "";
 
     private final static Random notReallyRandom = new Random(System.currentTimeMillis());
     private static final Logger LOGGER = LogManager.getLogger();
@@ -101,6 +106,16 @@ public abstract class EvaluationSubtask {
     public void adjustScope(ServerReport serverReport) {
         this.serverReport = serverReport;
     }
+    
+    public void bloat() {
+        List<String> subtaskIdentifiers = prepareSubtask();
+        Random soRandom = new Random();
+        for(String identifier : subtaskIdentifiers) {
+            for(int i = 0; i < evaluationConfig.getTotalMeasurements(); i++) {
+                addMeasurement(identifier, soRandom.nextLong());
+            }
+        }
+    }
 
     public EvaluationSubtaskReport evaluate() {
         LOGGER.info("Starting evaluation of {} - Target: {}", getSubtaskName(), getTargetName());
@@ -112,15 +127,17 @@ public abstract class EvaluationSubtask {
             int[] executionPlan = getExecutionPlan(subtaskIdentifiers.size(), evaluationConfig.getMeasurementsPerStep());
             int failedInARow = 0;
             int unreachableInARow = 0;
-            for (int i = 0; i < executionPlan.length; i++) {
-                if(i % 100000 == 0) {
+            for (int i = 0; i < executionPlan.length;) {
+                int nextIndentifier = executionPlan[i];
+                if(i % 1000 == 0) {
                     LOGGER.info("Progess: {}/{} for {}", i, executionPlan.length, getTargetName());
                 }
                 try {
                     TimingBenchmark.print("Starting next measurement");
-                    Long newMeasurement = measure(subtaskIdentifiers.get(executionPlan[i]));
+                    Long newMeasurement = measure(subtaskIdentifiers.get(nextIndentifier));
                     TimingBenchmark.print("Obtained measurement");
-                    addMeasurement(subtaskIdentifiers.get(executionPlan[i]), newMeasurement);
+                    addMeasurement(subtaskIdentifiers.get(nextIndentifier), newMeasurement);
+                    i++;
                     failedInARow = 0;
                     unreachableInARow = 0;
                 } catch (WorkflowTraceFailedEarlyException ex) {
@@ -129,8 +146,8 @@ public abstract class EvaluationSubtask {
                     LOGGER.error("WorkflowTrace failed early for {} - Target: {} will retry", getSubtaskName(), getTargetName());
                 } catch (UndetectableOracleException ex) {
                     failedInARow++;
-                    report.undetectableOracle(subtaskIdentifiers.get(executionPlan[i]));
-                    LOGGER.warn("Target {} send no alert and did not close for vector {} of {}", getTargetName(), subtaskIdentifiers.get(executionPlan[i]), getSubtaskName());
+                    report.undetectableOracle(subtaskIdentifiers.get(nextIndentifier));
+                    LOGGER.warn("Target {} send no alert and did not close for vector {} of {}", getTargetName(), subtaskIdentifiers.get(nextIndentifier), getSubtaskName());
                 } catch (TransportHandlerConnectException connectException) {
                     unreachableInARow++;
                     failedInARow++;
@@ -145,21 +162,29 @@ public abstract class EvaluationSubtask {
                     LOGGER.error("Failed to measure {} - Target: {} will retry", getSubtaskName(), getTargetName(), ex);
                 }
 
-                if (failedInARow == MAX_FAILURES_IN_A_ROW) {
+                if (failedInARow == MAX_FAILURES_IN_A_ROW && !evaluationConfig.isNeverStop()) {
                     LOGGER.error("Measuring aborted due to frequent failures - Subtask {} - Target: {}", getSubtaskName(), getTargetName());
                     report.setFailed(true);
                     return report;
-                } else if (report.getUndetectableCount() > UNDETECTABLE_LIMIT) {
+                } else if (report.getUndetectableCount() > UNDETECTABLE_LIMIT && !evaluationConfig.isNeverStop()) {
                     LOGGER.error("Measuring aborted since socket was {} times not closed and no alert was sent - Subtask {} - Target: {}", UNDETECTABLE_LIMIT, getSubtaskName(), getTargetName());
                     report.setFailed(true);
                     report.setUndetectable(true);
                     return report;
+                } else if(failedInARow > 3) {
+                    LOGGER.warn("So far, there have been {} consecutive failures.", failedInARow);
                 }
             }
             measurementsDone += evaluationConfig.getMeasurementsPerStep();
             LOGGER.info("Subtask {} completed {} measurements for {}", getSubtaskName(), measurementsDone, getTargetName());
             RScriptManager scriptManager = new RScriptManager(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations(), parentTask);
-            scriptManager.prepareFiles(getSubtaskName(), getTargetName());
+            if(evaluationConfig.isWriteInEachStep()) {
+                LOGGER.info("Writing sub results for subtask {}", getSubtaskName());
+                scriptManager.prepareExtendingFiles(getSubtaskName(), getTargetName());
+                resetMeasurements();
+            } else {
+               scriptManager.prepareFiles(getSubtaskName(), getTargetName()); 
+            }
 
             if (!evaluationConfig.isSkipR()) {
                 List<VectorEvaluationTask> executedEvalTasks = scriptManager.testWithR(measurementsDone);
@@ -210,6 +235,39 @@ public abstract class EvaluationSubtask {
             runningMeasurements.put(identifier, new LinkedList<>());
         }
         runningMeasurements.get(identifier).add(measured);
+        if(evaluationConfig.isPrintRam()) {
+            addMemoryInfo();
+        }
+    }
+    
+    protected static void addMemoryInfo() {
+        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        MemoryUsage heapMemoryUsage = memoryMXBean.getHeapMemoryUsage();
+        String memoryFootprint = String.format("Heap Info -- Initial: %s   Used: %s   Committed: %s   Max: %s", formatSize(heapMemoryUsage.getInit()), formatSize(heapMemoryUsage.getUsed()), formatSize(heapMemoryUsage.getCommitted()), formatSize(heapMemoryUsage.getMax()));
+        if(!memoryFootprint.equals(lastMemoryFootprint)) {
+            lastMemoryFootprint = memoryFootprint;
+            LOGGER.info(memoryFootprint);
+        }
+    }
+    
+    private static String formatSize(long bytes) {
+        long kilo = 1024;
+        long mega = kilo * kilo;
+        long giga = mega * kilo;
+
+        if (bytes >= giga) {
+            return String.format("%.2f GB", (double) bytes / giga);
+        } else if (bytes >= mega) {
+            return String.format("%.2f MB", (double) bytes / mega);
+        } else if (bytes >= kilo) {
+            return String.format("%.2f KB", (double) bytes / kilo);
+        } else {
+            return bytes + " B";
+        }
+    }
+    
+    protected void resetMeasurements() {
+        runningMeasurements.values().forEach(Collection::clear);
     }
 
     private void processAnalysisResults(List<String> subtaskIdentifiers, List<VectorEvaluationTask> executedEvalTasks) {
@@ -246,10 +304,22 @@ public abstract class EvaluationSubtask {
 
     private int[] getExecutionPlan(int identifierCount, int nextMeasurementsPerType) {
         int[] executionPlan = new int[identifierCount * nextMeasurementsPerType];
-        for (int i = 0; i < executionPlan.length; i++) {
-            executionPlan[i] = notReallyRandom.nextInt(identifierCount);
+        for(int i = 0; i < identifierCount; i++) {
+            Arrays.fill(executionPlan, i * nextMeasurementsPerType, (i + 1) * (nextMeasurementsPerType), i);
         }
+        shuffleArray(executionPlan);
+        shuffleArray(executionPlan);
+        shuffleArray(executionPlan);
         return executionPlan;
+    }
+    
+    private static void shuffleArray(int[] array) {
+        for (int i = array.length - 1; i > 0; i--) {
+            int j = notReallyRandom.nextInt(i + 1);
+            int temp = array[i];
+            array[i] = array[j];
+            array[j] = temp;
+        }
     }
 
     public String getSubtaskName() {
@@ -308,9 +378,9 @@ public abstract class EvaluationSubtask {
             dynamicPort = HttpUtil.getCurrentPort(targetIp, targetPort);
         }
         config.getDefaultClientConnection().setPort(dynamicPort);
-        config.getDefaultClientConnection().setProxyControlHostname("localhost");
+        config.getDefaultClientConnection().setProxyControlHostname(evaluationConfig.getProxyIp());
         config.getDefaultClientConnection().setProxyControlPort(evaluationConfig.getProxyControlPort());
-        config.getDefaultClientConnection().setProxyDataHostname("localhost");
+        config.getDefaultClientConnection().setProxyDataHostname(evaluationConfig.getProxyIp());
         config.getDefaultClientConnection().setProxyDataPort(evaluationConfig.getProxyDataPort());
         config.getDefaultClientConnection().setTimeout(evaluationConfig.getTimeout());
         config.getDefaultClientConnection().setFirstTimeout(evaluationConfig.getTimeout());
@@ -428,4 +498,11 @@ public abstract class EvaluationSubtask {
     }
 
     protected abstract boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace);
+    
+    protected CipherSuite parseEnforcedCipherSuite() {
+        if(evaluationConfig.getEnforcedCipher() != null) {
+            return CipherSuite.valueOf(evaluationConfig.getEnforcedCipher());
+        }
+        return null;
+    }
 }

@@ -5,17 +5,18 @@
 package de.rub.nds.timingdockerevaluator.util;
 
 import de.rub.nds.timingdockerevaluator.task.eval.RAdditionalOutput;
+import de.rub.nds.timingdockerevaluator.task.eval.RPostAnalyzedInfo;
 import java.util.LinkedList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 
-public class RDataFileGroup {
+public class RDataFileGroup<T extends RPostAnalyzedInfo> {
     
     private static final org.apache.logging.log4j.Logger LOGGER = LogManager.getLogger();
     
     private final LibraryInstance libraryInstance;
     
-    private final List<RAdditionalOutput> additionalRData = new LinkedList<>();
+    private final List<T> additionalRData = new LinkedList<>();
 
     public RDataFileGroup(LibraryInstance libraryInstance) {
         this.libraryInstance = libraryInstance;
@@ -25,17 +26,17 @@ public class RDataFileGroup {
         return libraryInstance;
     }
     
-    public void insertFile(RAdditionalOutput rOutput) {
+    public void insertFile(T rOutput) {
         getAdditionalRData().add(rOutput);
     }
 
-    public List<RAdditionalOutput> getAdditionalRData() {
+    public List<T> getAdditionalRData() {
         return additionalRData;
     }
     
-    public RAdditionalOutput getOutputForVectorName(String vectorName) {
-        RAdditionalOutput identifiedOutput = null;
-        for(RAdditionalOutput listed: additionalRData) {
+    public T getOutputForVectorName(String vectorName) {
+        T identifiedOutput = null;
+        for(T listed: additionalRData) {
             if(listed.getVectorName().equals(vectorName)) {
                 if(identifiedOutput == null) {
                     identifiedOutput = listed;

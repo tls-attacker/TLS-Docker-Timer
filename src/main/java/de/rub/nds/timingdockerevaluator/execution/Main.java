@@ -31,6 +31,7 @@ public class Main {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final DockerClient DOCKER = DockerClientManager.getDockerClient();
     private static TimingDockerEvaluatorCommandConfig evaluationConfig;
+    private static List<TimingDockerEvaluatorCommandConfig> additionalConfigs = new LinkedList<>();
     
     private static final String PO_PATH= "PaddingOracle";
     private static final String BB_PATH = "Bleichenbacher";
@@ -46,10 +47,24 @@ public class Main {
                 return;
             }
             checkCommandCombinations();
+            
+            if(evaluationConfig.getPathToR() != null) {
+                RScriptManager.R_SCRIPT_FILENAME = evaluationConfig.getPathToR();
+            }
+            LOGGER.info("Using R script {}", RScriptManager.R_SCRIPT_FILENAME);
         } catch (ParameterException ex) {
             LOGGER.error(ex);
             return;
         }
+        
+        //TODO remove later on
+        for(int i = 0; i < evaluationConfig.getRuns() - 1; i++) {
+            TimingDockerEvaluatorCommandConfig tmpConfig = new TimingDockerEvaluatorCommandConfig();
+            JCommander tmpCommander = new JCommander(tmpConfig);
+            tmpCommander.parse(args);
+            additionalConfigs.add(tmpConfig); 
+        }
+        
         TimingBenchmark.setEvaluationConfig(evaluationConfig);
         if(evaluationConfig.isAnalyzeOnly()) {
             analyzeGivenResults();
@@ -104,6 +119,8 @@ public class Main {
             throw new ParameterException("Measurements per step exceed total number of measurements.");
         } else if (evaluationConfig.getBaseVersion() != null && evaluationConfig.getSpecificVersion() != null) {
             throw new ParameterException("Both specific and base version(s) specified.");
+        } else if (evaluationConfig.getPathToR() != null && evaluationConfig.isSkipR()) {
+            throw new ParameterException("Set custom R path but also skipping R execution.");
         }
         
         if(evaluationConfig.getAdditionalParameter() != null && evaluationConfig.isNoAutoFlags()) {
@@ -117,13 +134,25 @@ public class Main {
 
     private static ExecutorService getRemoteExecutor() {
         LOGGER.info("Evaluating remote target {}:{}", evaluationConfig.getSpecificIp(), evaluationConfig.getSpecificPort());
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.execute(() -> {
-            if (!evaluationConfig.isDryRun()) {
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(evaluationConfig.getThreads());
+        if (!evaluationConfig.isDryRun()) {
+            executor.execute(() -> {
                 EvaluationTask task = new EvaluationTask(evaluationConfig);
                 task.execute();
+            });
+            for(int i = 0; i < evaluationConfig.getRuns() - 1; i++) {
+                TimingDockerEvaluatorCommandConfig subConfig = additionalConfigs.get(i);
+                subConfig.setSpecificPort(subConfig.getSpecificPort() + (i + 1));
+                subConfig.setSpecificName(subConfig.getSpecificName() + "-" + (i+1));
+                LOGGER.info("Additional run {} will use port {} for remote target. Results will be stored as {}", i + 1, subConfig.getSpecificPort(), subConfig.getSpecificName());
+                executor.execute(() -> {
+                    EvaluationTask task = new EvaluationTask(subConfig);
+                    task.execute();
+                });
             }
-        });
+           
+        
+         }
         return executor;
     }
 
@@ -185,9 +214,9 @@ public class Main {
         boolean matchesLibraryFilter = evaluationConfig.getSpecificLibrary() == null || Arrays.asList(evaluationConfig.getSpecificLibrary().split(",")).stream().anyMatch(implementation.name().toLowerCase()::equals);
         boolean matchesVersionFilter = true;
         if (evaluationConfig.getSpecificVersion() != null) {
-            matchesVersionFilter = Arrays.asList(evaluationConfig.getSpecificVersion().split(",")).stream().anyMatch(version.toLowerCase()::equals);
+            matchesVersionFilter = Arrays.asList(evaluationConfig.getSpecificVersion().toLowerCase().split(",")).stream().anyMatch(version.toLowerCase()::equals);
         } else if (evaluationConfig.getBaseVersion() != null) {
-            matchesVersionFilter = Arrays.asList(evaluationConfig.getBaseVersion().split(",")).stream().anyMatch(version.toLowerCase()::startsWith);
+            matchesVersionFilter = Arrays.asList(evaluationConfig.getBaseVersion().toLowerCase().split(",")).stream().anyMatch(version.toLowerCase()::startsWith);
         }
         return role.equals("server") && matchesLibraryFilter && matchesVersionFilter;
     }

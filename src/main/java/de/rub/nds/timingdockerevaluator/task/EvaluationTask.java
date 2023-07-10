@@ -26,6 +26,7 @@ import de.rub.nds.tls.subject.docker.DockerTlsServerInstance;
 import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.config.delegate.ClientDelegate;
 import de.rub.nds.tlsattacker.core.config.delegate.GeneralDelegate;
+import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.exceptions.TransportHandlerConnectException;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.ParallelExecutor;
@@ -42,6 +43,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class EvaluationTask extends TimingDockerTask {
 
@@ -72,6 +74,7 @@ public class EvaluationTask extends TimingDockerTask {
     private boolean portSwitchEnabled = false;
 
     List<EvaluationSubtask> subtasks = new LinkedList<>();
+    List<EvaluationSubtask> bloatingSubtasks = new LinkedList<>();
 
     public EvaluationTask(Image image, TimingDockerEvaluatorCommandConfig evaluationConfig, int runIteration) {
         super(evaluationConfig);
@@ -191,7 +194,9 @@ public class EvaluationTask extends TimingDockerTask {
 
     private void testTarget() throws FailedToHandshakeException, NoSubtaskApplicableException {
         runServerScan();
-        buildTaskList();
+        bloatingSubtasks = buildBloatList();
+        subtasks = buildTaskList();
+        bloatSubtasks();
         executeSubtasks();
     }
 
@@ -233,6 +238,19 @@ public class EvaluationTask extends TimingDockerTask {
             }  
         }
     }
+    
+    private void bloatSubtasks() {
+        if(!bloatingSubtasks.isEmpty()) {
+            LOGGER.info("Starting to bloat RAM footprint");
+            int ctr = 0;
+            for (EvaluationSubtask subtask : bloatingSubtasks) {
+                subtask.adjustScope(serverReport);
+                subtask.bloat();
+                ctr += 1;
+                LOGGER.info("Bloated with {} subtasks", ctr);
+            }
+        }
+    }
 
     public void runServerScan() {
         LOGGER.info("Starting TLS-Scanner for {}", targetName);
@@ -256,6 +274,7 @@ public class EvaluationTask extends TimingDockerTask {
 
         TlsServerScanner scanner = new TlsServerScanner(scannerConfig, parallelExecutor);
         serverReport = scanner.scan();
+        LOGGER.info("Supported cipher suites: {}", serverReport.getCipherSuites().stream().map(CipherSuite::toString).collect(Collectors.joining(", ")));
         parallelExecutor.shutdown();
     }
 
@@ -299,8 +318,17 @@ public class EvaluationTask extends TimingDockerTask {
         DOCKER.restartContainerCmd(dockerInstance.getId()).withtTimeout(0).exec();
         TimingBenchmark.print("Restarted");
     }
+    
+    public List<EvaluationSubtask> buildBloatList() throws FailedToHandshakeException, NoSubtaskApplicableException {
+        List<EvaluationSubtask> bloatTasksToAdd = new LinkedList<>();
+        for(int i = 0; i < getEvaluationConfig().getBloat(); i++) {
+            bloatTasksToAdd.addAll(buildTaskList());
+        }
+        return bloatTasksToAdd;
+    }
 
-    public void buildTaskList() throws FailedToHandshakeException, NoSubtaskApplicableException {
+    public List<EvaluationSubtask> buildTaskList() throws FailedToHandshakeException, NoSubtaskApplicableException {
+        List<EvaluationSubtask> tasksToAdd = new LinkedList<>();
         if (serverReport.getSpeaksProtocol() != null && serverReport.getSpeaksProtocol() == true) {
             EvaluationSubtask[] implementedSubtasks = {
                 new BleichenbacherSubtask(targetName, targetPort, targetIp, getEvaluationConfig(), this),
@@ -312,7 +340,7 @@ public class EvaluationTask extends TimingDockerTask {
                 if (getEvaluationConfig().getSpecificSubtask() == null || plannedSubtask.getSubtaskName().equalsIgnoreCase(getEvaluationConfig().getSpecificSubtask())) {
                     plannedSubtask.adjustScope(serverReport);
                     if (plannedSubtask.isApplicable()) {
-                        subtasks.add(plannedSubtask);
+                        tasksToAdd.add(plannedSubtask);
                     } else {
                         LOGGER.warn("Subtask {} is not applicable for {}", plannedSubtask.getSubtaskName(), targetName);
                         ExecutionWatcher.getReference().unapplicableSubtask(plannedSubtask.getSubtaskName(), targetName);
@@ -320,12 +348,13 @@ public class EvaluationTask extends TimingDockerTask {
                 }
             }
 
-            if (subtasks.isEmpty()) {
+            if (tasksToAdd.isEmpty()) {
                 throw new NoSubtaskApplicableException();
             }
         } else {
             throw new FailedToHandshakeException();
         }
+        return tasksToAdd;
     }
 
     public boolean isPortSwitchEnabled() {
