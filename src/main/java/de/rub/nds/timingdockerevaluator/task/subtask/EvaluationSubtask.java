@@ -64,7 +64,7 @@ public abstract class EvaluationSubtask {
 
     private final static Random notReallyRandom = new Random(System.currentTimeMillis());
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final int MAX_FAILURES_IN_A_ROW = 15;
+    private static final int MAX_FAILURES_IN_A_ROW = 30;
     private static final int UNDETECTABLE_LIMIT = 150;
     private static final int MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART = 5;
 
@@ -129,15 +129,15 @@ public abstract class EvaluationSubtask {
             int unreachableInARow = 0;
             for (int i = 0; i < executionPlan.length;) {
                 int nextIndentifier = executionPlan[i];
-                if(i % 1000 == 0) {
-                    LOGGER.info("Progess: {}/{} for {}", i, executionPlan.length, getTargetName());
-                }
+                printProgress(i, subtaskIdentifiers.size());
                 try {
                     TimingBenchmark.print("Starting next measurement");
+                    System.gc();
                     Long newMeasurement = measure(subtaskIdentifiers.get(nextIndentifier));
                     TimingBenchmark.print("Obtained measurement");
                     addMeasurement(subtaskIdentifiers.get(nextIndentifier), newMeasurement);
                     i++;
+                    measurementsDone++;
                     failedInARow = 0;
                     unreachableInARow = 0;
                 } catch (WorkflowTraceFailedEarlyException ex) {
@@ -175,7 +175,6 @@ public abstract class EvaluationSubtask {
                     LOGGER.warn("So far, there have been {} consecutive failures.", failedInARow);
                 }
             }
-            measurementsDone += evaluationConfig.getMeasurementsPerStep();
             LOGGER.info("Subtask {} completed {} measurements for {}", getSubtaskName(), measurementsDone, getTargetName());
             RScriptManager scriptManager = new RScriptManager(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations(), parentTask);
             if(evaluationConfig.isWriteInEachStep()) {
@@ -190,12 +189,23 @@ public abstract class EvaluationSubtask {
                 List<VectorEvaluationTask> executedEvalTasks = scriptManager.testWithR(measurementsDone);
                 processAnalysisResults(subtaskIdentifiers, executedEvalTasks);
             }
-            if (subtaskIdentifiers.size() <= 1 || measurementsDone >= evaluationConfig.getTotalMeasurements()) {
+            if (subtaskIdentifiers.size() <= 1 || measurementsDone >= evaluationConfig.getTotalMeasurements() * subtaskIdentifiers.size()) {
                 keepMeasuring = false;
             }
         } while (keepMeasuring);
         report.taskEnded();
+        // results have been written, remove them from RAM
+        resetMeasurements();
         return report;
+    }
+
+    private void printProgress(int i, int subtaskIdentifierCount) {
+        if(i % 1000 == 0 && measurementsDone > 0) {
+            long timeSpent = System.currentTimeMillis() - report.getStartTimestamp();
+            double timePerMeasurement = (double)(timeSpent / measurementsDone);
+            double remainingTime = timePerMeasurement * (evaluationConfig.getTotalMeasurements() * subtaskIdentifierCount - measurementsDone);
+            LOGGER.info("Progess: {}/{} for {} in subtask {} (Expected to finish in {})", measurementsDone, evaluationConfig.getTotalMeasurements() * subtaskIdentifierCount, getTargetName(), getSubtaskName(), getReadableTime(remainingTime));
+        }
     }
 
     private List<String> prepareSubtask() {
@@ -204,6 +214,16 @@ public abstract class EvaluationSubtask {
         report.setCipherSuite(cipherSuite);
         report.setProtocolVersion(version);
         return subtaskIdentifiers;
+    }
+    
+    private String getReadableTime(double nanos){
+        long tempSec    = (long) nanos/1000;
+        long sec        = tempSec % 60;
+        long min        = (tempSec /60) % 60;
+        long hour       = (tempSec /(60*60)) % 24;
+        long day        = (tempSec / (24*60*60)) % 24;
+    
+        return String.format("%dd %dh %dm %ds", day,hour,min,sec);
     }
 
     public void testVectors() {

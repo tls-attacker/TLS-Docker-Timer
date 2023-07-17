@@ -123,6 +123,14 @@ public class Main {
             throw new ParameterException("Set custom R path but also skipping R execution.");
         }
         
+        if(!evaluationConfig.isSkipR()) {
+            throw new UnsupportedOperationException("RTLF is not prepared to yield return codes");
+        }
+        
+        if(evaluationConfig.getMeasurementsPerStep() < evaluationConfig.getTotalMeasurements() && evaluationConfig.isSkipR() && !evaluationConfig.isWriteInEachStep()) {
+            LOGGER.warn("Configured to run in steps but both R evaluation and reduced RAM mode (-writeInEachStep) are disabled.");
+        }
+        
         if(evaluationConfig.getAdditionalParameter() != null && evaluationConfig.isNoAutoFlags()) {
             LOGGER.warn("Will set additional parameters as well as automatically chosen flags. Set -noAutoFlags to avoid this.");
         }
@@ -136,6 +144,7 @@ public class Main {
         LOGGER.info("Evaluating remote target {}:{}", evaluationConfig.getSpecificIp(), evaluationConfig.getSpecificPort());
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(evaluationConfig.getThreads());
         if (!evaluationConfig.isDryRun()) {
+            ExecutionWatcher.getReference().setTasks(evaluationConfig.getRuns());
             executor.execute(() -> {
                 EvaluationTask task = new EvaluationTask(evaluationConfig);
                 task.execute();
@@ -150,8 +159,6 @@ public class Main {
                     task.execute();
                 });
             }
-           
-        
          }
         return executor;
     }
@@ -193,9 +200,6 @@ public class Main {
         List<Image> allAvailableImages = DockerTlsManagerFactory.getAllImages();
         images = allAvailableImages.parallelStream().filter(image -> imageSelection(image, null)).collect(Collectors.toList());
         images.addAll(allAvailableImages.stream().filter(image -> imageSelection(image, images)).collect(Collectors.toList()));
-        for(int i = 1; i < evaluationConfig.getRuns(); i++) {
-            
-        }
     }
 
     private static boolean imageSelection(Image image, List<Image> presentImages) {
