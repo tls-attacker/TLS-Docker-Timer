@@ -63,7 +63,7 @@ public abstract class EvaluationSubtask {
     private static String lastMemoryFootprint = "";
 
     private final static Random notReallyRandom = new Random(System.currentTimeMillis());
-    private static final Logger LOGGER = LogManager.getLogger();
+    protected static final Logger LOGGER = LogManager.getLogger();
     private static final int MAX_FAILURES_IN_A_ROW = 30;
     private static final int UNDETECTABLE_LIMIT = 150;
     private static final int MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART = 5;
@@ -132,10 +132,12 @@ public abstract class EvaluationSubtask {
                 printProgress(i, subtaskIdentifiers.size());
                 try {
                     TimingBenchmark.print("Starting next measurement");
-                    System.gc();
+                    //System.gc();
+                    System.out.println("Planning to measure " + subtaskIdentifiers.get(nextIndentifier));
                     Long newMeasurement = measure(subtaskIdentifiers.get(nextIndentifier));
                     TimingBenchmark.print("Obtained measurement");
                     addMeasurement(subtaskIdentifiers.get(nextIndentifier), newMeasurement);
+                    System.out.println("Measurement is " + newMeasurement + "\n");
                     i++;
                     measurementsDone++;
                     failedInARow = 0;

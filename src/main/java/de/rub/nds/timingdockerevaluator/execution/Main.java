@@ -13,6 +13,7 @@ import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.constants.TlsImageLabels;
 import de.rub.nds.tls.subject.docker.DockerClientManager;
 import de.rub.nds.tls.subject.docker.DockerTlsManagerFactory;
+import java.security.Security;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class Main {
 
@@ -38,6 +40,7 @@ public class Main {
     private static final String LUCKY13_PATH = "Lucky13";
 
     public static void main(String args[]) {
+        Security.addProvider(new BouncyCastleProvider());
         evaluationConfig = new TimingDockerEvaluatorCommandConfig();
         JCommander commander = new JCommander(evaluationConfig);
         try {

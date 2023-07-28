@@ -171,6 +171,8 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-printRAM"}, description = "Keep evaluating even for frequent connection failures")
     private boolean printRam = false;
     
+    @Parameter(names = {"-echoTest"}, description = "(testing) use static traces to test with hard-coded echo server")
+    private boolean echoTest = false;
     
     
     public String getSpecificLibrary() {
@@ -447,5 +449,13 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setPrintRam(boolean printRam) {
         this.printRam = printRam;
+    }
+
+    public boolean isEchoTest() {
+        return echoTest;
+    }
+
+    public void setEchoTest(boolean echoTest) {
+        this.echoTest = echoTest;
     }
 }

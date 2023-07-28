@@ -27,6 +27,7 @@ import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.config.delegate.ClientDelegate;
 import de.rub.nds.tlsattacker.core.config.delegate.GeneralDelegate;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
+import de.rub.nds.tlsattacker.core.constants.ProtocolVersion;
 import de.rub.nds.tlsattacker.core.exceptions.TransportHandlerConnectException;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.ParallelExecutor;
@@ -37,11 +38,14 @@ import de.rub.nds.tlsscanner.serverscanner.config.ServerScannerConfig;
 import de.rub.nds.tlsscanner.serverscanner.connectivity.ConnectivityChecker;
 import de.rub.nds.tlsscanner.serverscanner.execution.TlsServerScanner;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
+import de.rub.nds.tlsscanner.serverscanner.selector.DefaultConfigProfile;
+import static de.rub.nds.tlsscanner.serverscanner.selector.DefaultConfigProfile.UNFILTERED;
 import java.util.LinkedList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -193,7 +197,20 @@ public class EvaluationTask extends TimingDockerTask {
     }
 
     private void testTarget() throws FailedToHandshakeException, NoSubtaskApplicableException {
-        runServerScan();
+        if(getEvaluationConfig().isEchoTest()) {
+            serverReport = new ServerReport(targetIp, targetPort);
+            HashSet<CipherSuite> cipherSuiteSet = new HashSet<>();
+            cipherSuiteSet.add(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA);
+            serverReport.setCipherSuites(cipherSuiteSet);
+            List<ProtocolVersion> versions = new LinkedList<>();
+            versions.add(ProtocolVersion.TLS12);
+            serverReport.setVersions(versions);
+            serverReport.setSpeaksProtocol(true);
+            serverReport.setIsHandshaking(true);
+            serverReport.setConfigProfileIdentifier(DefaultConfigProfile.UNFILTERED.name());
+        } else {
+            runServerScan();
+        }
         bloatingSubtasks = buildBloatList();
         subtasks = buildTaskList();
         bloatSubtasks();

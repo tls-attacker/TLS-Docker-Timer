@@ -1,5 +1,7 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
+import de.rub.nds.modifiablevariable.util.ArrayConverter;
+import de.rub.nds.modifiablevariable.util.Modifiable;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
@@ -8,6 +10,7 @@ import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.constants.AlgorithmResolver;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.constants.CipherType;
+import de.rub.nds.tlsattacker.core.protocol.message.RSAClientKeyExchangeMessage;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceiveAction;
@@ -38,18 +41,18 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
     @Override
     public void adjustScope(ServerReport serverReport) {
         super.adjustScope(serverReport);
-        if(serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
+        if (serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
             cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
-        } else  {
+        } else {
             cipherSuite = serverReport.getCipherSuites().stream().filter(CipherSuite::isRealCipherSuite).filter(cipher -> {
-            return AlgorithmResolver.getCipherType(cipher) == CipherType.BLOCK;
+                return AlgorithmResolver.getCipherType(cipher) == CipherType.BLOCK;
             }).findFirst().orElse(null);
         }
         CipherSuite enforcedSuite = parseEnforcedCipherSuite();
-        if(enforcedSuite != null) {
+        if (enforcedSuite != null) {
             cipherSuite = enforcedSuite;
         }
-        
+
         version = determineVersion(serverReport);
         if (version != null && cipherSuite != null) {
             vectors = (List<PaddingVector>) new VeryShortPaddingGenerator().getVectors(cipherSuite, version);
@@ -78,13 +81,31 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         if (testedVector == null) {
             throw new RuntimeException("No test vector found for identifier " + typeIdentifier);
         }
-        final byte[] newRandom = new byte[32];
         Config config = getBaseConfig(version, cipherSuite);
-        random.nextBytes(newRandom);
-        config.setDefaultClientRandom(newRandom);
         final WorkflowTrace workflowTrace = new ClassicPaddingTraceGenerator(PaddingRecordGeneratorType.VERY_SHORT).getPaddingOracleWorkflowTrace(config, testedVector);
+        if (evaluationConfig.isEchoTest()) {
+            byte[] byteArray = {
+                (byte) 0x67, (byte) 0xa8, (byte) 0x1a, (byte) 0xaf,
+                (byte) 0x60, (byte) 0xb4, (byte) 0x20, (byte) 0xbb,
+                (byte) 0x38, (byte) 0x51, (byte) 0xd9, (byte) 0xd4,
+                (byte) 0x7a, (byte) 0xcb, (byte) 0x93, (byte) 0x3d,
+                (byte) 0xbe, (byte) 0x70, (byte) 0x39, (byte) 0x9b,
+                (byte) 0xf6, (byte) 0xc9, (byte) 0x2d, (byte) 0xa3,
+                (byte) 0x3a, (byte) 0xf0, (byte) 0x1d, (byte) 0x4f,
+                (byte) 0xb7, (byte) 0x70, (byte) 0xe9, (byte) 0x8c
+            };
+            config.setUseFreshRandom(false);
+            config.setDefaultClientRandom(byteArray);
+            RSAClientKeyExchangeMessage rsaCke = workflowTrace.getFirstSendMessage(RSAClientKeyExchangeMessage.class);
+            rsaCke.prepareComputations();
+            rsaCke.getComputations().setPlainPaddedPremasterSecret(Modifiable.explicit(ArrayConverter.hexStringToByteArray("000260B420BB3851D9D47ACB933DBE70399BF6C92DA33AF01D4FB770E98C0325F41D3EBAF8986DA712C82BCD4D554BF0B54023C29B624DE9EF9C2F931EFC580F9AFB081B12E107B1E805F2B4F5F0F1D00C2D0F62634670921C505867FF20F6A8335E98AF8725385586B41FEFF205B4E05A010823F78B5F8F5C02439CE8F67A781D90CBE6BF1AE7F2BC40A49709A06C0E31499BF02969CA42D203E566BCC696DE08FA0102A0FD2E2330B0964ABB7C443020DE1CAD09BFD6381FFB94DAAFBB90C4ED91A0613AD1DC4B4703AF84C1D63B00030321C6D5869D61CCB98ED13AE6C09A13FC91E14922F301CF8BCF934315A6049D2F07D983FAA91B8F4E7265ECB815A7")));
+            rsaCke.getComputations().setPremasterSecret(Modifiable.explicit(ArrayConverter.hexStringToByteArray("030321C6D5869D61CCB98ED13AE6C09A13FC91E14922F301CF8BCF934315A6049D2F07D983FAA91B8F4E7265ECB815A7")));
+        } else {
+            config.setUseFreshRandom(true);
+        }
         setSpecificReceiveAction(workflowTrace);
         handleClientAuthentication(workflowTrace, config);
+
         final State state = new State(config, workflowTrace);
         runExecutor(state);
         return getMeasurement(state);
@@ -94,12 +115,12 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
     protected boolean isCompareAllVectorCombinations() {
         return true;
     }
-    
+
     @Override
     protected boolean workflowTraceSufficientlyExecuted(WorkflowTrace executedTrace) {
         //ensure that we got CCS, FIN
         List<ReceivingAction> receives = executedTrace.getReceivingActions();
-        return ((ReceiveAction)receives.get(1)).executedAsPlanned();
+        return ((ReceiveAction) receives.get(1)).executedAsPlanned();
     }
 
 }
