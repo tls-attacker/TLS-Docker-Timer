@@ -1,5 +1,8 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
+import de.rub.nds.modifiablevariable.bytearray.ByteArrayExplicitValueModification;
+import de.rub.nds.modifiablevariable.bytearray.ByteArrayXorModification;
+import de.rub.nds.modifiablevariable.bytearray.ModifiableByteArray;
 import de.rub.nds.modifiablevariable.util.ArrayConverter;
 import de.rub.nds.modifiablevariable.util.Modifiable;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
@@ -10,16 +13,25 @@ import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.constants.AlgorithmResolver;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
 import de.rub.nds.tlsattacker.core.constants.CipherType;
+import de.rub.nds.tlsattacker.core.constants.RunningModeType;
+import de.rub.nds.tlsattacker.core.protocol.message.ApplicationMessage;
 import de.rub.nds.tlsattacker.core.protocol.message.RSAClientKeyExchangeMessage;
+import de.rub.nds.tlsattacker.core.record.Record;
+import de.rub.nds.tlsattacker.core.record.RecordCryptoComputations;
 import de.rub.nds.tlsattacker.core.state.State;
 import de.rub.nds.tlsattacker.core.workflow.WorkflowTrace;
+import de.rub.nds.tlsattacker.core.workflow.action.GenericReceiveAction;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceiveAction;
 import de.rub.nds.tlsattacker.core.workflow.action.ReceivingAction;
+import de.rub.nds.tlsattacker.core.workflow.action.SendAction;
+import de.rub.nds.tlsattacker.core.workflow.factory.WorkflowConfigurationFactory;
+import de.rub.nds.tlsattacker.core.workflow.factory.WorkflowTraceType;
 import de.rub.nds.tlsscanner.serverscanner.probe.padding.constants.PaddingRecordGeneratorType;
 import de.rub.nds.tlsscanner.serverscanner.probe.padding.trace.ClassicPaddingTraceGenerator;
 import de.rub.nds.tlsscanner.serverscanner.probe.padding.vector.PaddingVector;
 import de.rub.nds.tlsscanner.serverscanner.probe.padding.vector.VeryShortPaddingGenerator;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -27,7 +39,7 @@ import java.util.stream.Collectors;
 public class PaddingOracleSubtask extends EvaluationSubtask {
 
     private final Random random = new Random(System.currentTimeMillis());
-    List<PaddingVector> vectors;
+    List<String> vectors;
 
     public PaddingOracleSubtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
         super(SubtaskNames.PADDING_ORACLE.getCamelCaseName(), targetName, port, ip, evaluationConfig, parentTask);
@@ -54,14 +66,21 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         }
 
         version = determineVersion(serverReport);
-        if (version != null && cipherSuite != null) {
-            vectors = (List<PaddingVector>) new VeryShortPaddingGenerator().getVectors(cipherSuite, version);
+        vectors = new LinkedList<>();
+        vectors.add("ValPadInvMac-[0]-0-59");
+        vectors.add("InvPadValMac-[0]-0-59");
+        vectors.add("Plain_FF");
+        vectors.add("Plain_XF_(0xXF=#padding_bytes)");
+        
+        if(cipherSuite != CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA) {
+            LOGGER.error("Code flow only accepts TLS_RSA_WITH_AES_128_CBC_SHA");
+            cipherSuite = null;
         }
     }
 
     @Override
     protected List<String> getSubtaskIdentifiers() {
-        return vectors.stream().map(PaddingVector::getName).map(name -> name.replace(" ", "_")).collect(Collectors.toList());
+        return new LinkedList<>(vectors);
     }
 
     @Override
@@ -71,18 +90,9 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
 
     @Override
     protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException {
-        PaddingVector testedVector = null;
-        for (PaddingVector vector : vectors) {
-            if (vector.getName().replace(" ", "_").equals(typeIdentifier)) {
-                testedVector = vector;
-                break;
-            }
-        }
-        if (testedVector == null) {
-            throw new RuntimeException("No test vector found for identifier " + typeIdentifier);
-        }
+       
         Config config = getBaseConfig(version, cipherSuite);
-        final WorkflowTrace workflowTrace = new ClassicPaddingTraceGenerator(PaddingRecordGeneratorType.VERY_SHORT).getPaddingOracleWorkflowTrace(config, testedVector);
+        final WorkflowTrace workflowTrace = getWorkflowTraceForRecordType(typeIdentifier, config);
         if (evaluationConfig.isEchoTest()) {
             byte[] byteArray = {
                 (byte) 0x67, (byte) 0xa8, (byte) 0x1a, (byte) 0xaf,
@@ -108,9 +118,109 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
 
         final State state = new State(config, workflowTrace);
         runExecutor(state);
+        
+        System.out.println("Plain bytes for " + typeIdentifier + ": " + "\n" + ArrayConverter.bytesToHexString(((Record)workflowTrace.getLastSendingAction().getSendRecords().get(0)).getComputations().getPlainRecordBytes()));
+        //((Record)workflowTrace.getLastSendingAction().getSendRecords().get(0)).getComputations().getPlainRecordBytes().getValue();
         return getMeasurement(state);
     }
 
+    private WorkflowTrace getWorkflowTraceForRecordType(String identifier, Config config) {
+        Record preparedRecord = new Record();
+        preparedRecord.setComputations(new RecordCryptoComputations());
+        ModifiableByteArray paddingModArray;
+        ModifiableByteArray macModArray;
+        byte[] padding;
+        if(identifier.equals("ValPadInvMac-[0]-0-59")) {
+            padding = new byte[] {
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B,
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B ,
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B ,
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B,
+                0x3B, 0x3B, 0x3B, 0x3B};
+            //actual XOR
+            macModArray = Modifiable.xor(new byte[] {(byte)0x80}, 0);
+        } else if (identifier.equals("InvPadValMac-[0]-0-59")) {
+            padding = new byte[] {
+                (byte) 0xBB, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B,
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B ,
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B ,
+                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B,
+                0x3B, 0x3B, 0x3B, 0x3B};
+            macModArray = Modifiable.xor(new byte[] {(byte)0x00}, 0);
+        } else if (identifier.equals("Plain_FF")) {
+            padding = new byte[] {
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF ,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF ,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
+            
+            byte[] fullPlain = new byte[] {
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF ,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF ,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
+            preparedRecord.getComputations().setPlainRecordBytes(Modifiable.explicit(fullPlain));
+            macModArray = Modifiable.xor(new byte[] {(byte)0x00}, 0);
+        } else if (identifier.equals("Plain_XF_(0xXF=#padding_bytes)")) {
+            padding = new byte[] {
+                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 
+                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 
+                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 
+                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f,
+                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f ,
+                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f ,
+                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f,
+                0x4f, 0x4f, 0x4f, 0x4f};
+            byte[] fullPlain = new byte[] {
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, 
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, 
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, 
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F,
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F ,
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F ,
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F,
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F,
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F,
+                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F};
+            preparedRecord.getComputations().setPlainRecordBytes(Modifiable.explicit(fullPlain));
+            macModArray = Modifiable.xor(new byte[] {(byte)0x00}, 0);
+        } else {
+            throw new IllegalArgumentException("Unknown Record type " + identifier);
+        }
+        paddingModArray = Modifiable.explicit(padding);
+        preparedRecord.setCleanProtocolMessageBytes(Modifiable.explicit(new byte[0]));
+        preparedRecord.getComputations().setPadding(paddingModArray);
+        preparedRecord.getComputations().setMac(macModArray);
+        
+        RunningModeType runningMode = config.getDefaultRunningMode();
+        WorkflowTrace trace =
+            new WorkflowConfigurationFactory(config).createWorkflowTrace(WorkflowTraceType.HANDSHAKE, runningMode);
+        ApplicationMessage applicationMessage = new ApplicationMessage(config);
+        SendAction sendAction = new SendAction(applicationMessage);
+        sendAction.setRecords(new LinkedList<>());
+        sendAction.getRecords().add(preparedRecord);
+        trace.addTlsAction(sendAction);
+        trace.addTlsAction(new GenericReceiveAction());
+        return trace;
+    }
+    
+    
     @Override
     protected boolean isCompareAllVectorCombinations() {
         return true;

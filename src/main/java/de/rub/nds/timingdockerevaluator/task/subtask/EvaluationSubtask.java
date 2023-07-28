@@ -133,11 +133,9 @@ public abstract class EvaluationSubtask {
                 try {
                     TimingBenchmark.print("Starting next measurement");
                     //System.gc();
-                    System.out.println("Planning to measure " + subtaskIdentifiers.get(nextIndentifier));
                     Long newMeasurement = measure(subtaskIdentifiers.get(nextIndentifier));
                     TimingBenchmark.print("Obtained measurement");
                     addMeasurement(subtaskIdentifiers.get(nextIndentifier), newMeasurement);
-                    System.out.println("Measurement is " + newMeasurement + "\n");
                     i++;
                     measurementsDone++;
                     failedInARow = 0;
