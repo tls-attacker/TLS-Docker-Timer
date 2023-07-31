@@ -119,7 +119,6 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         final State state = new State(config, workflowTrace);
         runExecutor(state);
         
-        System.out.println("Plain bytes for " + typeIdentifier + ": " + "\n" + ArrayConverter.bytesToHexString(((Record)workflowTrace.getLastSendingAction().getSendRecords().get(0)).getComputations().getPlainRecordBytes()));
         //((Record)workflowTrace.getLastSendingAction().getSendRecords().get(0)).getComputations().getPlainRecordBytes().getValue();
         return getMeasurement(state);
     }
