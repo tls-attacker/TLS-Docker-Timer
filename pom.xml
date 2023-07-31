@@ -17,6 +17,11 @@
             <version>2.0.1b-SNAPSHOT</version>
         </dependency>
         <dependency>
+            <groupId>de.rub.nds</groupId>
+            <artifactId>ModifiableVariable</artifactId>
+            <version>3.5.0b</version>
+        </dependency>
+        <dependency>
             <groupId>com.github.docker-java</groupId>
             <artifactId>docker-java-core</artifactId>
             <version>3.2.5</version>

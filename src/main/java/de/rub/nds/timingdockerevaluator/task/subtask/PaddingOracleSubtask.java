@@ -119,7 +119,7 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         final State state = new State(config, workflowTrace);
         runExecutor(state);
         
-        //((Record)workflowTrace.getLastSendingAction().getSendRecords().get(0)).getComputations().getPlainRecordBytes().getValue();
+        //System.out.println(ArrayConverter.bytesToHexString(((Record)workflowTrace.getLastSendingAction().getSendRecords().get(0)).getComputations().getPlainRecordBytes().getValue()));
         return getMeasurement(state);
     }
 
@@ -129,82 +129,114 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         ModifiableByteArray paddingModArray;
         ModifiableByteArray macModArray;
         byte[] padding;
+        byte padVal;
+        byte macXorVal;
         if(identifier.equals("ValPadInvMac-[0]-0-59")) {
+            padVal = (byte) 0x3B;
+            macXorVal = (byte) 0x80;
             padding = new byte[] {
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B,
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B ,
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B ,
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B,
-                0x3B, 0x3B, 0x3B, 0x3B};
-            //actual XOR
-            macModArray = Modifiable.xor(new byte[] {(byte)0x80}, 0);
+                (byte) 0x3B, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal};
+            byte[] fullPlain = new byte[] {
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            preparedRecord.getComputations().setPlainRecordBytes(Modifiable.dummy(fullPlain));
         } else if (identifier.equals("InvPadValMac-[0]-0-59")) {
+            padVal = (byte) 0x3B;
+            macXorVal = (byte) 0x00;
+            // add padding array in all vectors because we need to modify the
+            // first byte for this vector
             padding = new byte[] {
-                (byte) 0xBB, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B,
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B ,
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B ,
-                0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B,
-                0x3B, 0x3B, 0x3B, 0x3B};
-            macModArray = Modifiable.xor(new byte[] {(byte)0x00}, 0);
+                (byte) 0xBB, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal};
+            byte[] fullPlain = new byte[] {
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            preparedRecord.getComputations().setPlainRecordBytes(Modifiable.dummy(fullPlain));
         } else if (identifier.equals("Plain_FF")) {
+            padVal = (byte) 0xFF;
+            macXorVal = (byte) 0x00;
             padding = new byte[] {
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF ,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF ,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
-            
+                (byte) 0xFF, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal};
             byte[] fullPlain = new byte[] {
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF ,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF ,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
             preparedRecord.getComputations().setPlainRecordBytes(Modifiable.explicit(fullPlain));
-            macModArray = Modifiable.xor(new byte[] {(byte)0x00}, 0);
         } else if (identifier.equals("Plain_XF_(0xXF=#padding_bytes)")) {
+            padVal = (byte) 0x4F;
+            macXorVal = (byte) 0x00;
             padding = new byte[] {
-                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 
-                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 
-                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 
-                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f,
-                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f ,
-                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f ,
-                0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f,
-                0x4f, 0x4f, 0x4f, 0x4f};
+                (byte) 0x4F, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal};
             byte[] fullPlain = new byte[] {
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, 
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, 
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, 
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F,
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F ,
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F ,
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F,
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F,
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F,
-                (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F, (byte) 0x4F};
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
             preparedRecord.getComputations().setPlainRecordBytes(Modifiable.explicit(fullPlain));
-            macModArray = Modifiable.xor(new byte[] {(byte)0x00}, 0);
         } else {
             throw new IllegalArgumentException("Unknown Record type " + identifier);
         }
         paddingModArray = Modifiable.explicit(padding);
         preparedRecord.setCleanProtocolMessageBytes(Modifiable.explicit(new byte[0]));
         preparedRecord.getComputations().setPadding(paddingModArray);
+        
+        macModArray = Modifiable.xor(new byte[] {macXorVal}, 0);
         preparedRecord.getComputations().setMac(macModArray);
         
         RunningModeType runningMode = config.getDefaultRunningMode();
