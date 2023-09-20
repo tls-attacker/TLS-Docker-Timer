@@ -465,7 +465,7 @@ public abstract class EvaluationSubtask {
         if (serverReport.getCcaSupported()) {
             if (workflowTrace.getFirstReceivingAction() instanceof ReceiveAction) {
                 List<ProtocolMessage> expectedMessages = ((ReceiveAction) workflowTrace.getFirstReceivingAction()).getExpectedMessages();
-                expectedMessages.add(expectedMessages.size() - 2, new CertificateRequestMessage());
+                expectedMessages.add(expectedMessages.size() - 1, new CertificateRequestMessage());
             }
 
             if (serverReport.getCcaRequired()) {

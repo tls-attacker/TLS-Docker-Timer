@@ -1,7 +1,5 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
-import de.rub.nds.modifiablevariable.bytearray.ByteArrayExplicitValueModification;
-import de.rub.nds.modifiablevariable.bytearray.ByteArrayXorModification;
 import de.rub.nds.modifiablevariable.bytearray.ModifiableByteArray;
 import de.rub.nds.modifiablevariable.util.ArrayConverter;
 import de.rub.nds.modifiablevariable.util.Modifiable;
@@ -26,15 +24,10 @@ import de.rub.nds.tlsattacker.core.workflow.action.ReceivingAction;
 import de.rub.nds.tlsattacker.core.workflow.action.SendAction;
 import de.rub.nds.tlsattacker.core.workflow.factory.WorkflowConfigurationFactory;
 import de.rub.nds.tlsattacker.core.workflow.factory.WorkflowTraceType;
-import de.rub.nds.tlsscanner.serverscanner.probe.padding.constants.PaddingRecordGeneratorType;
-import de.rub.nds.tlsscanner.serverscanner.probe.padding.trace.ClassicPaddingTraceGenerator;
-import de.rub.nds.tlsscanner.serverscanner.probe.padding.vector.PaddingVector;
-import de.rub.nds.tlsscanner.serverscanner.probe.padding.vector.VeryShortPaddingGenerator;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Collectors;
 
 public class PaddingOracleSubtask extends EvaluationSubtask {
 
@@ -66,16 +59,21 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         }
 
         version = determineVersion(serverReport);
-        vectors = new LinkedList<>();
-        vectors.add("ValPadInvMac-[0]-0-59");
-        vectors.add("InvPadValMac-[0]-0-59");
-        vectors.add("Plain_FF");
-        vectors.add("Plain_XF_(0xXF=#padding_bytes)");
-        
-        if(cipherSuite != CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA) {
-            LOGGER.error("Code flow only accepts TLS_RSA_WITH_AES_128_CBC_SHA");
+        if(cipherSuite != CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA && !(cipherSuite.name().contains("SHA256") && cipherSuite.name().contains("AES"))) {
+            LOGGER.error("Code flow only accepts TLS_RSA_WITH_AES_128_CBC_SHA or any AES CBC SHA256");
             cipherSuite = null;
         }
+        
+        vectors = new LinkedList<>();   
+        if(cipherSuite == CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA) {
+            vectors.add("ValPadInvMac-[0]-0-59");
+            vectors.add("InvPadValMac-[0]-0-59");
+        } else {
+            vectors.add("ValPadInvMac-[0]-0-47");
+            vectors.add("InvPadValMac-[0]-0-47");
+        }
+        vectors.add("Plain_FF");
+        vectors.add("Plain_XF_(0xXF=#padding_bytes)");
     }
 
     @Override
@@ -92,7 +90,14 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
     protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException {
        
         Config config = getBaseConfig(version, cipherSuite);
-        final WorkflowTrace workflowTrace = getWorkflowTraceForRecordType(typeIdentifier, config);
+        
+        WorkflowTrace workflowTrace;
+        if(cipherSuite == CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA) {
+            workflowTrace = getWorkflowTraceForRecordType(typeIdentifier, config);
+        } else {
+            workflowTrace = getWorkflowTraceForRecordTypeSha256(typeIdentifier, config);
+        }
+        
         if (evaluationConfig.isEchoTest()) {
             byte[] byteArray = {
                 (byte) 0x67, (byte) 0xa8, (byte) 0x1a, (byte) 0xaf,
@@ -122,7 +127,7 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         //System.out.println(ArrayConverter.bytesToHexString(((Record)workflowTrace.getLastSendingAction().getSendRecords().get(0)).getComputations().getPlainRecordBytes().getValue()));
         return getMeasurement(state);
     }
-
+    
     private WorkflowTrace getWorkflowTraceForRecordType(String identifier, Config config) {
         Record preparedRecord = new Record();
         preparedRecord.setComputations(new RecordCryptoComputations());
@@ -239,9 +244,127 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         macModArray = Modifiable.xor(new byte[] {macXorVal}, 0);
         preparedRecord.getComputations().setMac(macModArray);
         
+        WorkflowTrace trace = createTrace(config, preparedRecord);
+        return trace;
+    }
+    
+    private WorkflowTrace getWorkflowTraceForRecordTypeSha256(String identifier, Config config) {
+        // This code is duplicated to avoid changes to our tested setup
+        Record preparedRecord = new Record();
+        preparedRecord.setComputations(new RecordCryptoComputations());
+        ModifiableByteArray paddingModArray;
+        ModifiableByteArray macModArray;
+        byte[] padding;
+        byte padVal;
+        byte macXorVal;
+        if(identifier.equals("ValPadInvMac-[0]-0-47")) {
+            padVal = (byte)  0x2F;
+            macXorVal = (byte) 0x80;
+            padding = new byte[] {
+                (byte) 0x2F, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            byte[] fullPlain = new byte[] {
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            preparedRecord.getComputations().setPlainRecordBytes(Modifiable.dummy(fullPlain));
+        } else if (identifier.equals("InvPadValMac-[0]-0-47")) {
+            padVal = (byte) 0x2F;
+            macXorVal = (byte) 0x00;
+            // add padding array in all vectors because we need to modify the
+            // first byte for this vector
+            padding = new byte[] {
+                (byte) 0xAF, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            byte[] fullPlain = new byte[] {
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            preparedRecord.getComputations().setPlainRecordBytes(Modifiable.dummy(fullPlain));
+        } else if (identifier.equals("Plain_FF")) {
+            padVal = (byte) 0xFF;
+            macXorVal = (byte) 0x00;
+            padding = new byte[] {
+                (byte) 0xFF, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            byte[] fullPlain = new byte[] {
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            preparedRecord.getComputations().setPlainRecordBytes(Modifiable.explicit(fullPlain));
+        } else if (identifier.equals("Plain_XF_(0xXF=#padding_bytes)")) {
+            padVal = (byte) 0x4F;
+            macXorVal = (byte) 0x00;
+            padding = new byte[] {
+                (byte) 0x4F, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            byte[] fullPlain = new byte[] {
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal, 
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal,
+                padVal, padVal, padVal, padVal, padVal, padVal, padVal, padVal};
+            preparedRecord.getComputations().setPlainRecordBytes(Modifiable.explicit(fullPlain));
+        } else {
+            throw new IllegalArgumentException("Unknown Record type " + identifier);
+        }
+        paddingModArray = Modifiable.explicit(padding);
+        preparedRecord.setCleanProtocolMessageBytes(Modifiable.explicit(new byte[0]));
+        preparedRecord.getComputations().setPadding(paddingModArray);
+        
+        macModArray = Modifiable.xor(new byte[] {macXorVal}, 0);
+        preparedRecord.getComputations().setMac(macModArray);
+        
+        WorkflowTrace trace = createTrace(config, preparedRecord);
+        return trace;
+    }
+    
+    private WorkflowTrace createTrace(Config config, Record preparedRecord) {
         RunningModeType runningMode = config.getDefaultRunningMode();
         WorkflowTrace trace =
-            new WorkflowConfigurationFactory(config).createWorkflowTrace(WorkflowTraceType.HANDSHAKE, runningMode);
+                new WorkflowConfigurationFactory(config).createWorkflowTrace(WorkflowTraceType.HANDSHAKE, runningMode);
         ApplicationMessage applicationMessage = new ApplicationMessage(config);
         SendAction sendAction = new SendAction(applicationMessage);
         sendAction.setRecords(new LinkedList<>());

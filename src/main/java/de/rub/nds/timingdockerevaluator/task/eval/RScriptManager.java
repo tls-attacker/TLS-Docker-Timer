@@ -21,7 +21,7 @@ import org.apache.logging.log4j.Logger;
 public class RScriptManager {
     
     public static String R_SCRIPT_FILENAME = "RTLF.R";
-    public static final String R_SCRIPT_QUANTILE_EXTRACTOR = "extractMaxQuantileDiffNotNormed.R";  //"extractQuantileDetails.R"
+    public static final String R_SCRIPT_QUANTILE_EXTRACTOR = "extractMaxQuantileDiffCyclesToNano.R";  //"extractQuantileDetails.R"
     public static final String R_QUANTILE_DETAILS_FILE = "rQuantileDetails.tmp";
     
     private static String outputFolder;
