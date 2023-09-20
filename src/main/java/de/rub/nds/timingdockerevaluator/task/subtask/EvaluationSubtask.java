@@ -171,8 +171,12 @@ public abstract class EvaluationSubtask {
                     report.setFailed(true);
                     report.setUndetectable(true);
                     return report;
-                } else if(failedInARow > 3) {
+                } else if(failedInARow > MAX_FAILURES_IN_A_ROW / 2) {
                     LOGGER.warn("So far, there have been {} consecutive failures.", failedInARow);
+                    if(evaluationConfig.isManagedTarget()) {
+                        LOGGER.warn("Attempting to restart container.");
+                        parentTask.restartContainer();
+                    }
                 }
             }
             LOGGER.info("Subtask {} completed {} measurements for {}", getSubtaskName(), measurementsDone, getTargetName());
