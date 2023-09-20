@@ -204,7 +204,7 @@ public abstract class EvaluationSubtask {
     }
 
     private boolean quickRestartTriggered(int failedInARow, int unreachableInARow) {
-        return evaluationConfig.isRestartQuickly() && (failedInARow > MAX_FAILURES_IN_A_ROW / 10 || unreachableInARow > 0);
+        return evaluationConfig.isRestartQuickly() && (failedInARow > 2 || unreachableInARow > 0);
     }
 
     private void printProgress(int i, int subtaskIdentifierCount) {
