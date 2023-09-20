@@ -171,7 +171,7 @@ public abstract class EvaluationSubtask {
                     report.setFailed(true);
                     report.setUndetectable(true);
                     return report;
-                } else if(failedInARow > MAX_FAILURES_IN_A_ROW / 2) {
+                } else if(failedInARow > MAX_FAILURES_IN_A_ROW / 2 || quickRestartTriggered(failedInARow, unreachableInARow)) {
                     LOGGER.warn("So far, there have been {} consecutive failures.", failedInARow);
                     if(evaluationConfig.isManagedTarget()) {
                         LOGGER.warn("Attempting to restart container.");
@@ -201,6 +201,10 @@ public abstract class EvaluationSubtask {
         // results have been written, remove them from RAM
         resetMeasurements();
         return report;
+    }
+
+    private boolean quickRestartTriggered(int failedInARow, int unreachableInARow) {
+        return evaluationConfig.isRestartQuickly() && (failedInARow > MAX_FAILURES_IN_A_ROW / 10 || unreachableInARow > 0);
     }
 
     private void printProgress(int i, int subtaskIdentifierCount) {

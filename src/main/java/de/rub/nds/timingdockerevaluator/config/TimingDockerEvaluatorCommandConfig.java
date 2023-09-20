@@ -6,6 +6,14 @@ import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
 
 public class TimingDockerEvaluatorCommandConfig {
 
+    public boolean isRestartQuickly() {
+        return restartQuickly;
+    }
+
+    public void setRestartQuickly(boolean restartQuickly) {
+        this.restartQuickly = restartQuickly;
+    }
+
     public int getBloat() {
         return bloat;
     }
@@ -173,6 +181,9 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-echoTest"}, description = "(testing) use static traces to test with hard-coded echo server")
     private boolean echoTest = false;
+    
+    @Parameter(names = {"-restartQuickly"}, description = "Restart the docker container after few errors.")
+    private boolean restartQuickly = false;
     
     
     public String getSpecificLibrary() {
