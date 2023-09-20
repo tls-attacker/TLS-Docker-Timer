@@ -151,7 +151,7 @@ public abstract class EvaluationSubtask {
                 } catch (TransportHandlerConnectException connectException) {
                     unreachableInARow++;
                     failedInARow++;
-                    LOGGER.error("Target {} was unreachable", getTargetName());
+                    LOGGER.error("Target {} was unreachable using {}:{} - {}", getTargetName(), targetIp, targetPort, connectException);
                     if (unreachableInARow == MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART && (evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_CONTAINTER || evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_SERVER)) {
                         LOGGER.warn("Failed to reach {} {} times - switching to restarting mode", getTargetName(), MAX_UNREACHABLE_IN_A_ROW_BEFORE_RESTART);
                         switchedToRestarting = true;
