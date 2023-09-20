@@ -333,7 +333,16 @@ public class EvaluationTask extends TimingDockerTask {
     public void restartContainer() {
         TimingBenchmark.print("Restarting container");
         DOCKER.restartContainerCmd(dockerInstance.getId()).withtTimeout(0).exec();
+        try {
+            retrieveContainerIp(dockerInstance);
+        } catch (ContainerFailedException containerException) {
+            throw new RuntimeException("Failed to fetch port on container restart");
+        }
         TimingBenchmark.print("Restarted");
+    }
+    
+    public boolean isContainerAlive() {
+        return DOCKER.inspectContainerCmd(dockerInstance.getId()).exec().getState().getRunning();
     }
     
     public List<EvaluationSubtask> buildBloatList() throws FailedToHandshakeException, NoSubtaskApplicableException {
