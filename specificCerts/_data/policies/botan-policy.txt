@@ -1,5 +1,6 @@
 allow_tls10 = true
 allow_tls11 = true
 allow_tls12 = true
-ciphers = AES-256 AES-128
+ciphers = AES-128 AES-256
 key_exchange_methods = ECDH DH RSA
+signature_methods = RSA ECDSA IMPLICIT
