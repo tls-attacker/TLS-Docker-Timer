@@ -32,6 +32,7 @@ import java.util.Random;
 public class PaddingOracleSubtask extends EvaluationSubtask {
 
     private final Random random = new Random(System.currentTimeMillis());
+    private boolean usingAesSha = false;
     List<String> vectors;
 
     public PaddingOracleSubtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
@@ -48,24 +49,37 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         super.adjustScope(serverReport);
         if (serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
             cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
+            usingAesSha = true;
         } else {
-            cipherSuite = serverReport.getCipherSuites().stream().filter(CipherSuite::isRealCipherSuite).filter(cipher -> {
+            cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES_128_CBC") && cipher.name().endsWith("_SHA")).findFirst().orElse(null);
+            if(cipherSuite == null) {
+                cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES") && cipher.name().contains("CBC") && cipher.name().endsWith("_SHA")).findFirst().orElse(null);
+            }
+            usingAesSha = true;
+            if(cipherSuite == null) {
+                usingAesSha = false;
+                cipherSuite = serverReport.getCipherSuites().stream().filter(CipherSuite::isRealCipherSuite).filter(cipher -> {
                 return AlgorithmResolver.getCipherType(cipher) == CipherType.BLOCK;
             }).findFirst().orElse(null);
+            }
         }
         CipherSuite enforcedSuite = parseEnforcedCipherSuite();
         if (enforcedSuite != null) {
             cipherSuite = enforcedSuite;
         }
+        
+        if(cipherSuite !=null ) {
+            LOGGER.info("Using cipher suite {} for {}", cipherSuite.name(), getSubtaskName());
+        }
 
         version = determineVersion(serverReport);
-        if(cipherSuite != CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA && !(cipherSuite.name().contains("SHA256") && cipherSuite.name().contains("AES"))) {
-            LOGGER.error("Code flow only accepts TLS_RSA_WITH_AES_128_CBC_SHA or any AES CBC SHA256");
+        if(!(cipherSuite.name().contains("SHA") && cipherSuite.name().contains("AES")) && !(cipherSuite.name().contains("SHA256") && cipherSuite.name().contains("AES"))) {
+            LOGGER.error("Code flow only accepts AES CBC SHA or any AES CBC SHA256");
             cipherSuite = null;
         }
         
         vectors = new LinkedList<>();   
-        if(cipherSuite == CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA) {
+        if(usingAesSha) {
             vectors.add("ValPadInvMac-[0]-0-59");
             vectors.add("InvPadValMac-[0]-0-59");
         } else {
@@ -92,7 +106,7 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         Config config = getBaseConfig(version, cipherSuite);
         
         WorkflowTrace workflowTrace;
-        if(cipherSuite == CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA) {
+        if(usingAesSha) {
             workflowTrace = getWorkflowTraceForRecordType(typeIdentifier, config);
         } else {
             workflowTrace = getWorkflowTraceForRecordTypeSha256(typeIdentifier, config);
