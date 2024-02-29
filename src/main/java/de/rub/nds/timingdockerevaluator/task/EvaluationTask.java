@@ -158,7 +158,7 @@ public class EvaluationTask extends TimingDockerTask {
                 LOGGER.warn("Failed to reach target {} using requested and default port.", targetName);
             }
         } else {
-            LOGGER.info("Port switiching tested, pausing 2s to allow for server restart before initiating TLS-Scanner");
+            LOGGER.info("Port switiching tested, pausing 2s to allow for server restart before initiating TLS-Scanner.");
             // if the server crashed here, give it some time to restart before
             // the server scanner performs its own connectivity check
             pauseFor(2000);
@@ -231,7 +231,6 @@ public class EvaluationTask extends TimingDockerTask {
                 subtask.testVectors();
             } else {
                 EvaluationSubtaskReport report = subtask.evaluate();
-                ExecutionWatcher.getReference().finishedSubtask(report);
                 SubtaskReportWriter.writeReport(report);
                 if (report.isFailed()) {
                     ExecutionWatcher.getReference().abortedSubtask(report.getTaskName(), report.getTargetName());
