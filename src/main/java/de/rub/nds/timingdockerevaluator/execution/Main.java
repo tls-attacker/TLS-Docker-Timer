@@ -74,9 +74,11 @@ public class Main {
 
     private static void logConfiguration() {
         LOGGER.info("Measurements per step set to {}", evaluationConfig.getMeasurementsPerStep());
-        LOGGER.info("Maximum measurements per vector set to {}", evaluationConfig.getTotalMeasurements());
-        LOGGER.info("Analyzing {} in parallel", evaluationConfig.getThreads());
-        LOGGER.info("Target management set to: {}", evaluationConfig.getTargetManagement());
+        LOGGER.info("Total measurements per vector set to {}", evaluationConfig.getTotalMeasurements());
+        if(evaluationConfig.getThreads() > 1) {
+            LOGGER.info("Analyzing {} in parallel", evaluationConfig.getThreads());
+        }
+        LOGGER.info("Target management set to: {} ({})", evaluationConfig.getTargetManagement(), evaluationConfig.getTargetManagement().getDescription());
         if(evaluationConfig.getSpecificSubtask() != null) {
             LOGGER.info("Limiting tests to subtask: {}", evaluationConfig.getSpecificSubtask());
         }
