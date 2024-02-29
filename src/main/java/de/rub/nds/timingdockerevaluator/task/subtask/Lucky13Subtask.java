@@ -21,9 +21,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class Lucky13Subtask extends EvaluationSubtask {
-
-    private boolean supportsCipher = false;
-    
     
     public Lucky13Subtask(String targetName, int port, String ip, TimingDockerEvaluatorCommandConfig evaluationConfig, EvaluationTask parentTask) {
         super(SubtaskNames.LUCKY13.getCamelCaseName(), targetName, port, ip, evaluationConfig, parentTask);

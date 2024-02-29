@@ -8,9 +8,7 @@ import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.tlsattacker.core.config.Config;
-import de.rub.nds.tlsattacker.core.constants.AlgorithmResolver;
 import de.rub.nds.tlsattacker.core.constants.CipherSuite;
-import de.rub.nds.tlsattacker.core.constants.CipherType;
 import de.rub.nds.tlsattacker.core.constants.RunningModeType;
 import de.rub.nds.tlsattacker.core.protocol.message.ApplicationMessage;
 import de.rub.nds.tlsattacker.core.protocol.message.RSAClientKeyExchangeMessage;
@@ -27,7 +25,6 @@ import de.rub.nds.tlsattacker.core.workflow.factory.WorkflowTraceType;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Random;
 
 public class PaddingOracleSubtask extends EvaluationSubtask {
 
@@ -46,36 +43,8 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
     @Override
     public void adjustScope(ServerReport serverReport) {
         super.adjustScope(serverReport);
-        if (serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
-            cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
-            usingAesSha = true;
-        } else {
-            cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES_128_CBC") && cipher.name().endsWith("_SHA")).findFirst().orElse(null);
-            if(cipherSuite == null) {
-                cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES") && cipher.name().contains("CBC") && cipher.name().endsWith("_SHA")).findFirst().orElse(null);
-            }
-            usingAesSha = true;
-            if(cipherSuite == null) {
-                usingAesSha = false;
-                cipherSuite = serverReport.getCipherSuites().stream().filter(CipherSuite::isRealCipherSuite).filter(cipher -> {
-                return AlgorithmResolver.getCipherType(cipher) == CipherType.BLOCK;
-            }).findFirst().orElse(null);
-            }
-        }
-        CipherSuite enforcedSuite = parseEnforcedCipherSuite();
-        if (enforcedSuite != null) {
-            cipherSuite = enforcedSuite;
-        }
-        
-        if(cipherSuite !=null ) {
-            LOGGER.info("Using cipher suite {} for {}", cipherSuite.name(), getSubtaskName());
-        }
-
+        selectCipherSuite(serverReport);
         version = determineVersion(serverReport);
-        if(!(cipherSuite.name().contains("SHA") && cipherSuite.name().contains("AES")) && !(cipherSuite.name().contains("SHA256") && cipherSuite.name().contains("AES"))) {
-            LOGGER.error("Code flow only accepts AES CBC SHA or any AES CBC SHA256");
-            cipherSuite = null;
-        }
         
         vectors = new LinkedList<>();   
         if(usingAesSha) {
@@ -87,6 +56,37 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         }
         vectors.add("Plain_FF");
         vectors.add("Plain_XF_(0xXF=#padding_bytes)");
+    }
+
+    private void selectCipherSuite(ServerReport serverReport) {
+        CipherSuite enforcedSuite = parseEnforcedCipherSuite();
+        if (enforcedSuite != null) {
+            cipherSuite = enforcedSuite;
+        } else if (serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
+            cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
+            usingAesSha = true;
+        } else {
+            // try to select any *_AES_128_CBC_SHA cipher suite
+            cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES_128_CBC") && cipher.name().endsWith("_SHA")).findFirst().orElse(null);
+            if(cipherSuite == null) {
+                // try to select any *_AES_*_CBC_SHA cipher suite
+                cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES") && cipher.name().contains("CBC") && cipher.name().endsWith("_SHA")).findFirst().orElse(null);
+            }
+            if(cipherSuite == null) {
+                // try to select any *_AES_*_CBC_SHA256 cipher suite
+                cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES") && cipher.name().contains("CBC") && cipher.name().endsWith("_SHA256")).findFirst().orElse(null);
+            }
+            usingAesSha = cipherSuite.name().endsWith("_SHA");
+        }
+
+        if(cipherSuite != null ) {
+            if(!(cipherSuite.name().contains("SHA") && cipherSuite.name().contains("AES")) && !(cipherSuite.name().contains("SHA256") && cipherSuite.name().contains("AES"))) {
+                LOGGER.error("Code flow only accepts AES CBC SHA or any AES CBC SHA256");
+                cipherSuite = null;
+            } else {
+                LOGGER.info("Using cipher suite {} for {}", cipherSuite.name(), getSubtaskName());
+            }
+        }
     }
 
     @Override

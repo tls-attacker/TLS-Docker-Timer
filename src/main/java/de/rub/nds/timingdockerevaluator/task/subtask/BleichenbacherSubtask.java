@@ -56,15 +56,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
     @Override
     public void adjustScope(ServerReport serverReport) {
         super.adjustScope(serverReport);
-        if(serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
-            cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
-        } else {
-            cipherSuite = serverReport.getCipherSuites().stream().filter(CipherSuite::isRealCipherSuite).filter(cipher -> {
-            return AlgorithmResolver.getKeyExchangeAlgorithm(cipher) == KeyExchangeAlgorithm.RSA;
-            }).findFirst().orElse(null);
-        }
-        
-        
+        selectCipherSuite(serverReport);
         version = determineVersion(serverReport);
         if (cipherSuite != null && version != null) {
             if(evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_CONTAINTER) {
@@ -89,6 +81,17 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
             consideredVectorNames.add("No 0x00 in message");
             consideredVectorNames.add("0x00 on the next to last position (|PMS| = 1)");
             vectors = ((List<Pkcs1Vector>) Pkcs1VectorGenerator.generatePkcs1Vectors((RSAPublicKey) publicKey, BleichenbacherScanType.FAST, version)).stream().filter(vector -> consideredVectorNames.contains(vector.getName())).collect(Collectors.toList());
+        }
+    }
+
+    private void selectCipherSuite(ServerReport serverReport) {
+        if(serverReport.getCipherSuites().contains(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)) {
+            cipherSuite = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA;
+        } else {
+            // use any RSA KEX cipher suite if specific cipher suite is not supported
+            cipherSuite = serverReport.getCipherSuites().stream().filter(CipherSuite::isRealCipherSuite).filter(cipher -> {
+                return AlgorithmResolver.getKeyExchangeAlgorithm(cipher) == KeyExchangeAlgorithm.RSA;
+            }).findFirst().orElse(null);
         }
     }
 
