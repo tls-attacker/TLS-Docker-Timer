@@ -21,7 +21,6 @@ import de.rub.nds.timingdockerevaluator.util.TimingBenchmark;
 import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.constants.TlsImageLabels;
 import de.rub.nds.tls.subject.docker.DockerClientManager;
-import de.rub.nds.tls.subject.docker.DockerTlsInstance;
 import de.rub.nds.tls.subject.docker.DockerTlsServerInstance;
 import de.rub.nds.tlsattacker.core.config.Config;
 import de.rub.nds.tlsattacker.core.config.delegate.ClientDelegate;
@@ -39,25 +38,15 @@ import de.rub.nds.tlsscanner.serverscanner.connectivity.ConnectivityChecker;
 import de.rub.nds.tlsscanner.serverscanner.execution.TlsServerScanner;
 import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
 import de.rub.nds.tlsscanner.serverscanner.selector.DefaultConfigProfile;
-import static de.rub.nds.tlsscanner.serverscanner.selector.DefaultConfigProfile.UNFILTERED;
 import java.util.LinkedList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class EvaluationTask extends TimingDockerTask {
-
-    public int getRunIteration() {
-        return runIteration;
-    }
-
-    public void setRunIteration(int runIteration) {
-        this.runIteration = runIteration;
-    }
 
     private final static int PORT_SWITCH_ACTIVATION_ATTEMPTS = 3;
 
@@ -66,7 +55,6 @@ public class EvaluationTask extends TimingDockerTask {
     private static final DockerClient DOCKER = DockerClientManager.getDockerClient();
 
     private int targetPort;
-    private int runIteration;
     private String targetIp;
 
     private final String targetName;
@@ -244,7 +232,7 @@ public class EvaluationTask extends TimingDockerTask {
             } else {
                 EvaluationSubtaskReport report = subtask.evaluate();
                 ExecutionWatcher.getReference().finishedSubtask(report);
-                SubtaskReportWriter.writeReport(report, getRunIteration(), false);
+                SubtaskReportWriter.writeReport(report);
                 if (report.isFailed()) {
                     ExecutionWatcher.getReference().abortedSubtask(report.getTaskName(), report.getTargetName());
                 }

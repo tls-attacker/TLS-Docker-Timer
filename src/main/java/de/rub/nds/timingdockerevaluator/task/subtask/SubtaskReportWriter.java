@@ -1,7 +1,7 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
-import de.rub.nds.timingdockerevaluator.task.eval.RScriptManager;
+import de.rub.nds.timingdockerevaluator.task.eval.ResultFileWriter;
 import java.beans.XMLDecoder;
 import java.beans.XMLEncoder;
 import java.io.BufferedOutputStream;
@@ -22,10 +22,10 @@ public class SubtaskReportWriter {
 
     private static final Logger LOGGER = LogManager.getLogger();
     
-    public static void writeReport(EvaluationSubtaskReport report, int run, boolean multipleRuns) {
-        RScriptManager.assureOutputFolderIsSet();
+    public static void writeReport(EvaluationSubtaskReport report) {
+        ResultFileWriter.assureOutputFolderIsSet();
         XMLEncoder encoder = null;
-        File outputFile = new File(RScriptManager.getOutputFolder() + ((multipleRuns)? "/Iteration-" + run + "/": "") + "/" + report.getTargetName() + "-" + report.getTaskName());
+        File outputFile = new File(ResultFileWriter.getOutputFolder() + "/" + report.getTargetName() + "-" + report.getTaskName());
         outputFile.getParentFile().mkdirs();
         try {
             encoder = new XMLEncoder(new BufferedOutputStream(new FileOutputStream(outputFile)));

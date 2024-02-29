@@ -1,7 +1,7 @@
 package de.rub.nds.timingdockerevaluator.task.subtask;
 
 import de.rub.nds.modifiablevariable.util.Modifiable;
-import de.rub.nds.timingdockerevaluator.task.eval.RScriptManager;
+import de.rub.nds.timingdockerevaluator.task.eval.ResultFileWriter;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.eval.VectorEvaluationTask;
@@ -132,7 +132,6 @@ public abstract class EvaluationSubtask {
                 printProgress(i, subtaskIdentifiers.size());
                 try {
                     TimingBenchmark.print("Starting next measurement");
-                    //System.gc();
                     Long newMeasurement = measure(subtaskIdentifiers.get(nextIndentifier));
                     TimingBenchmark.print("Obtained measurement");
                     addMeasurement(subtaskIdentifiers.get(nextIndentifier), newMeasurement);
@@ -180,18 +179,13 @@ public abstract class EvaluationSubtask {
                 }
             }
             LOGGER.info("Subtask {} completed {} measurements for {}", getSubtaskName(), measurementsDone, getTargetName());
-            RScriptManager scriptManager = new RScriptManager(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations(), parentTask);
+            ResultFileWriter scriptManager = new ResultFileWriter(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations(), parentTask);
             if(evaluationConfig.isWriteInEachStep()) {
                 LOGGER.info("Writing sub results for subtask {}", getSubtaskName());
                 scriptManager.prepareExtendingFiles(getSubtaskName(), getTargetName());
                 resetMeasurements();
             } else {
                scriptManager.prepareFiles(getSubtaskName(), getTargetName()); 
-            }
-
-            if (!evaluationConfig.isSkipR()) {
-                List<VectorEvaluationTask> executedEvalTasks = scriptManager.testWithR(measurementsDone);
-                processAnalysisResults(subtaskIdentifiers, executedEvalTasks);
             }
             if (subtaskIdentifiers.size() <= 1 || measurementsDone >= evaluationConfig.getTotalMeasurements() * subtaskIdentifiers.size()) {
                 keepMeasuring = false;
@@ -293,28 +287,6 @@ public abstract class EvaluationSubtask {
     
     protected void resetMeasurements() {
         runningMeasurements.values().forEach(Collection::clear);
-    }
-
-    private void processAnalysisResults(List<String> subtaskIdentifiers, List<VectorEvaluationTask> executedEvalTasks) {
-        for (VectorEvaluationTask task : executedEvalTasks) {
-            switch (task.getExitCode()) {
-                case 12:
-                    LOGGER.info("Found significant difference for {} in comparison to {} - Target: {}", task.getIdentifier1(), task.getIdentifier2(), getTargetName());
-                    subtaskIdentifiers.remove(task.getIdentifier2());
-                    finishedMeasurements.put(task.getIdentifier2(), runningMeasurements.get(task.getIdentifier2()));
-                    report.appendFinding(task.getIdentifier1() + " vs " + task.getIdentifier2());
-                    runningMeasurements.remove(task.getIdentifier2());
-                    break;
-                case 13:
-                    LOGGER.info("Continuing - F1A for {} in comparison to {} - Target: {}", task.getIdentifier1(), task.getIdentifier2(), getTargetName());
-                    break;
-                case 14:
-                    LOGGER.info("Continuing - No difference for {} in comparison to {} - Target: {}", task.getIdentifier1(), task.getIdentifier2(), getTargetName());
-                    break;
-                default:
-                    LOGGER.error("R Script failed - status code {} - Target: {}", task.getExitCode(), getTargetName());
-            }
-        }
     }
 
     protected abstract List<String> getSubtaskIdentifiers();

@@ -31,7 +31,6 @@ import java.util.Random;
 
 public class PaddingOracleSubtask extends EvaluationSubtask {
 
-    private final Random random = new Random(System.currentTimeMillis());
     private boolean usingAesSha = false;
     List<String> vectors;
 
@@ -138,7 +137,6 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         final State state = new State(config, workflowTrace);
         runExecutor(state);
         
-        //System.out.println(ArrayConverter.bytesToHexString(((Record)workflowTrace.getLastSendingAction().getSendRecords().get(0)).getComputations().getPlainRecordBytes().getValue()));
         return getMeasurement(state);
     }
     

@@ -7,7 +7,6 @@ import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.Image;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
-import de.rub.nds.timingdockerevaluator.task.eval.RScriptManager;
 import de.rub.nds.timingdockerevaluator.util.TimingBenchmark;
 import de.rub.nds.tls.subject.TlsImplementationType;
 import de.rub.nds.tls.subject.constants.TlsImageLabels;
@@ -45,26 +44,16 @@ public class Main {
                 return;
             }
             checkCommandCombinations();
-            
-            if(evaluationConfig.getPathToR() != null) {
-                RScriptManager.R_SCRIPT_FILENAME = evaluationConfig.getPathToR();
-            }
-            LOGGER.info("Using R script {}", RScriptManager.R_SCRIPT_FILENAME);
         } catch (ParameterException ex) {
             LOGGER.error(ex);
             return;
         }
         
         TimingBenchmark.setEvaluationConfig(evaluationConfig);
-        if(evaluationConfig.isAnalyzeOnly()) {
-            analyzeGivenResults();
-        } else {
-            measureTask(); 
-        }
+        measureTask(); 
     }
 
     protected static void measureTask() {
-        checkRStatus();
         logConfiguration();
 
         ExecutorService executor;
@@ -80,15 +69,6 @@ public class Main {
             ExecutionWatcher.getReference().printSummary();
         } catch (InterruptedException ex) {
             LOGGER.error(ex);
-        }
-    }
-    
-    protected static void analyzeGivenResults() {
-        if(evaluationConfig.getCsvInput() != null) {
-            checkRStatus();
-            RAnalyzer.analyzeGivenCSVs(evaluationConfig);
-        } else {
-            RAnalyzer.printResults(evaluationConfig.getrAnalyzedInput(), evaluationConfig);
         }
     }
 
@@ -109,24 +89,14 @@ public class Main {
             throw new ParameterException("Measurements per step exceed total number of measurements.");
         } else if (evaluationConfig.getBaseVersion() != null && evaluationConfig.getSpecificVersion() != null) {
             throw new ParameterException("Both specific and base version(s) specified.");
-        } else if (evaluationConfig.getPathToR() != null && evaluationConfig.isSkipR()) {
-            throw new ParameterException("Set custom R path but also skipping R execution.");
         }
         
-        if(!evaluationConfig.isSkipR()) {
-            throw new UnsupportedOperationException("RTLF is not prepared to yield return codes");
-        }
-        
-        if(evaluationConfig.getMeasurementsPerStep() < evaluationConfig.getTotalMeasurements() && evaluationConfig.isSkipR() && !evaluationConfig.isWriteInEachStep()) {
-            LOGGER.warn("Configured to run in steps but both R evaluation and reduced RAM mode (-writeInEachStep) are disabled.");
+        if(evaluationConfig.getMeasurementsPerStep() < evaluationConfig.getTotalMeasurements() && !evaluationConfig.isWriteInEachStep()) {
+            LOGGER.warn("Configured to run in steps but reduced RAM mode (-writeInEachStep) is disabled.");
         }
         
         if(evaluationConfig.getAdditionalParameter() != null && evaluationConfig.isNoAutoFlags()) {
-            LOGGER.warn("Will set additional parameters as well as automatically chosen flags. Set -noAutoFlags to avoid this.");
-        }
-        
-        if(evaluationConfig.getCsvInput() != null && evaluationConfig.getrAnalyzedInput() != null) {
-            throw new ParameterException("Both CSV input path and analyzed R results path set. Only set CSV path to run R and print results.");
+            LOGGER.warn("Will set additional parameters as well as automatically chosen flags for docker containers. Set -noAutoFlags to avoid this.");
         }
     }
 
@@ -160,15 +130,6 @@ public class Main {
             }
         }
         return executor;
-    }
-
-    private static void checkRStatus() {
-        if (evaluationConfig.isSkipR()) {
-            LOGGER.info("R script is disabled. All vectors will be tested with maximum number of measurements.");
-        } else if (!RScriptManager.rScriptGiven()) {
-            LOGGER.error("Failed to find R script, must be provided in execution path");
-            System.exit(0);
-        }
     }
 
     private static void collectTargets() {

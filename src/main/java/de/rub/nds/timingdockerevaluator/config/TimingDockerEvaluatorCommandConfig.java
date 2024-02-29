@@ -6,53 +6,7 @@ import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
 
 public class TimingDockerEvaluatorCommandConfig {
 
-    public boolean isRestartQuickly() {
-        return restartQuickly;
-    }
-
-    public void setRestartQuickly(boolean restartQuickly) {
-        this.restartQuickly = restartQuickly;
-    }
-
-    public boolean isNeverStop() {
-        return neverStop;
-    }
-
-    public void setNeverStop(boolean neverStop) {
-        this.neverStop = neverStop;
-    }
-
-    public boolean isExtractQuantileDetails() {
-        return extractQuantileDetails;
-    }
-
-    public void setExtractQuantileDetails(boolean extractQuantileDetails) {
-        this.extractQuantileDetails = extractQuantileDetails;
-    }
-
-    public boolean isGenericCsvs() {
-        return genericCsvs;
-    }
-
-    public void setGenericCsvs(boolean genericCsvs) {
-        this.genericCsvs = genericCsvs;
-    }
-
-    public boolean isBenchmark() {
-        return benchmark;
-    }
-
-    public void setBenchmark(boolean benchmark) {
-        this.benchmark = benchmark;
-    }
-
-    public boolean isKeepContainer() {
-        return keepContainer;
-    }
-
-    public void setKeepContainer(boolean keepContainer) {
-        this.keepContainer = keepContainer;
-    }
+    
    
     @Parameter(names = "-i", description = "Number of measurements per step")
     private int measurementsPerStep = 500000;
@@ -77,9 +31,6 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-port", "-p"}, description = "Specific port to connect to instead of managed docker container")
     private int specificPort = 4433;
-    
-    @Parameter(names = {"-skipr", "-skipR"}, description = "Skip execution of the R script and only measure")
-    private boolean skipR = false;
     
     @Parameter(names = "-name", description = "Use a specific name for the output of a remote target")
     private String specificName = null;
@@ -117,15 +68,6 @@ public class TimingDockerEvaluatorCommandConfig {
     @Parameter(names = {"-keepContainer"}, description = "Do not stop and remove the container")
     private boolean keepContainer = false;
     
-    @Parameter(names = {"-csvInput"}, description = "Look for result csv's in the specified directory and provide R output")
-    private String csvInput = null;
-    
-    @Parameter(names = {"-genericCsvs"}, description = "Don't resolve library instances and run directly on csv files")
-    private boolean genericCsvs = false;
-    
-    @Parameter(names = {"-rAnalyzedInput"}, description = "Look for R results in the specified directory and print the results")
-    private String rAnalyzedInput = null;
-    
     @Parameter(names = {"-noAutoFlags"}, description = "Do not set additional parameters for libraries where required")
     private boolean noAutoFlags = false;
     
@@ -140,12 +82,6 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-testVectors"}, description = "Test selected vectors step by step")
     private boolean onlyTestVectors = false;
-    
-    @Parameter(names = {"-quantileDetails"}, description = "Extract details on quantiles of analyzed data")
-    private boolean extractQuantileDetails = false;
-    
-    @Parameter(names = {"-rscript"}, description = "Specify path to R Script")
-    private String pathToR = null;
     
     @Parameter(names = {"-cipher"}, description = "Specify cipher to use in tests")
     private String enforcedCipher = null;
@@ -185,14 +121,6 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setSpecificIp(String specificIp) {
         this.specificIp = specificIp;
-    }
-
-    public boolean isSkipR() {
-        return skipR;
-    }
-
-    public void setSkipR(boolean skipR) {
-        this.skipR = skipR;
     }
 
     public int getMeasurementsPerStep() {
@@ -319,32 +247,12 @@ public class TimingDockerEvaluatorCommandConfig {
         this.additionalParameter = additionalParameter;
     }
 
-    public String getCsvInput() {
-        return csvInput;
-    }
-
-    public void setCsvInput(String csvInput) {
-        this.csvInput = csvInput;
-    }
-    
-    public boolean isAnalyzeOnly() {
-        return csvInput != null || rAnalyzedInput != null;
-    }
-
     public boolean isNoAutoFlags() {
         return noAutoFlags;
     }
 
     public void setNoAutoFlags(boolean noAutoFlags) {
         this.noAutoFlags = noAutoFlags;
-    }
-
-    public String getrAnalyzedInput() {
-        return rAnalyzedInput;
-    }
-
-    public void setrAnalyzedInput(String rAnalyzedInput) {
-        this.rAnalyzedInput = rAnalyzedInput;
     }
 
     public boolean isPrintToConsole() {
@@ -373,14 +281,6 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setOnlyTestVectors(boolean onlyTestVectors) {
         this.onlyTestVectors = onlyTestVectors;
-    }
-
-    public String getPathToR() {
-        return pathToR;
-    }
-
-    public void setPathToR(String pathToR) {
-        this.pathToR = pathToR;
     }
 
     public String getEnforcedCipher() {
@@ -413,5 +313,37 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setEchoTest(boolean echoTest) {
         this.echoTest = echoTest;
+    }
+    
+    public boolean isRestartQuickly() {
+        return restartQuickly;
+    }
+
+    public void setRestartQuickly(boolean restartQuickly) {
+        this.restartQuickly = restartQuickly;
+    }
+
+    public boolean isNeverStop() {
+        return neverStop;
+    }
+
+    public void setNeverStop(boolean neverStop) {
+        this.neverStop = neverStop;
+    }
+
+    public boolean isBenchmark() {
+        return benchmark;
+    }
+
+    public void setBenchmark(boolean benchmark) {
+        this.benchmark = benchmark;
+    }
+
+    public boolean isKeepContainer() {
+        return keepContainer;
+    }
+
+    public void setKeepContainer(boolean keepContainer) {
+        this.keepContainer = keepContainer;
     }
 }

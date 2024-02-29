@@ -1,33 +1,23 @@
 package de.rub.nds.timingdockerevaluator.task.eval;
 
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 
-public class RScriptManager {
-    
-    public static String R_SCRIPT_FILENAME = "RTLF.R";
-    public static final String R_SCRIPT_QUANTILE_EXTRACTOR = "extractMaxQuantileDiffCyclesToNano.R";  //"extractQuantileDetails.R"
-    public static final String R_QUANTILE_DETAILS_FILE = "rQuantileDetails.tmp";
+public class ResultFileWriter {
     
     private static String outputFolder;
     private static final Logger LOGGER = LogManager.getLogger();
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
-    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH-mm-ss");
     
     private final String baselineIdentifier;
     private final Map<String, List<Long>> measurements;
@@ -35,7 +25,7 @@ public class RScriptManager {
     private final boolean compareAllCombinations;
     private EvaluationTask parentTask;
     
-    public RScriptManager(String baselineIdentifier, Map<String, List<Long>> measurements, boolean compareAllCombinations, EvaluationTask parentTask) {
+    public ResultFileWriter(String baselineIdentifier, Map<String, List<Long>> measurements, boolean compareAllCombinations, EvaluationTask parentTask) {
         this.baselineIdentifier = baselineIdentifier;
         this.measurements = measurements;
         this.compareAllCombinations = compareAllCombinations;
@@ -169,56 +159,6 @@ public class RScriptManager {
             setOutputFolder("output-" + DATE_TIME_FORMAT.format(now));
         }
     }
-    
-    public List<VectorEvaluationTask> testWithR(int n) {
-        List<VectorEvaluationTask> executedTasks = new LinkedList<>(vectorEvaluationTasks);
-        for(VectorEvaluationTask taskToExecute:  executedTasks) {
-            try {
-                String file = taskToExecute.getFilePath();
-                int exitCode = testSingleFileWithR(file, n);
-                taskToExecute.setExitCode(exitCode);
-            } catch (IOException | InterruptedException ex) {
-                LOGGER.error("Failed to run RScript", ex);
-            }
-        }
-        return executedTasks;
-    }
-
-    public static int testSingleFileWithR(String file, int n) throws IOException, InterruptedException {
-        return testDetailedWithR(file, TIME_FORMAT.format(LocalDateTime.now()), n);
-    }
-    
-    public static int testDetailedWithR(String file, String rDataSpecifier, int n) throws IOException, InterruptedException {
-        String rDataPath = file + rDataSpecifier + ".RDATA";
-        String[] commandArray = new String[]{"Rscript", R_SCRIPT_FILENAME, file, rDataPath, Integer.toString(n)};
-        Process rProcess = Runtime.getRuntime().exec(commandArray);
-        int exitCode = rProcess.waitFor();
-        if(exitCode == 1) {
-            LOGGER.warn("R-Script failed using command {}", Arrays.asList(commandArray).stream().collect(Collectors.joining(" ")));
-        }
-        return exitCode;
-    }
-    
-    public static int extractQuantileDetails(String file) {
-        try {
-            String[] commandArray = new String[]{"Rscript", R_SCRIPT_QUANTILE_EXTRACTOR, file, R_QUANTILE_DETAILS_FILE};
-            Process rProcess = Runtime.getRuntime().exec(commandArray);
-            int code = rProcess.waitFor();
-            if(code > 0) {
-                LOGGER.error(new BufferedReader(new InputStreamReader(rProcess.getInputStream())).readLine());
-            }
-            return code;
-        } catch (IOException | InterruptedException ex) {
-            LOGGER.error("Failed to run RScript", ex);
-        }
-        return 1;
-    }
-    
-    
-    public static boolean rScriptGiven() {
-        File rScriptFile = new File(R_SCRIPT_FILENAME);
-        return rScriptFile.exists();
-    } 
 
     public static String getOutputFolder() {
         return outputFolder;
