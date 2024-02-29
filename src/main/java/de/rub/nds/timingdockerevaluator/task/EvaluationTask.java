@@ -78,14 +78,12 @@ public class EvaluationTask extends TimingDockerTask {
     private boolean portSwitchEnabled = false;
 
     List<EvaluationSubtask> subtasks = new LinkedList<>();
-    List<EvaluationSubtask> bloatingSubtasks = new LinkedList<>();
 
-    public EvaluationTask(Image image, TimingDockerEvaluatorCommandConfig evaluationConfig, int runIteration) {
+    public EvaluationTask(Image image, TimingDockerEvaluatorCommandConfig evaluationConfig) {
         super(evaluationConfig);
         this.implementation = TlsImplementationType.fromString(image.getLabels().get(TlsImageLabels.IMPLEMENTATION.getLabelName()));
         this.version = image.getLabels().get(TlsImageLabels.VERSION.getLabelName());
         this.targetName = implementation.toString() + "-" + version;
-        this.runIteration = runIteration;
     }
 
     public EvaluationTask(TimingDockerEvaluatorCommandConfig evaluationConfig) {
@@ -211,9 +209,7 @@ public class EvaluationTask extends TimingDockerTask {
         } else {
             runServerScan();
         }
-        bloatingSubtasks = buildBloatList();
         subtasks = buildTaskList();
-        bloatSubtasks();
         executeSubtasks();
     }
 
@@ -248,24 +244,11 @@ public class EvaluationTask extends TimingDockerTask {
             } else {
                 EvaluationSubtaskReport report = subtask.evaluate();
                 ExecutionWatcher.getReference().finishedSubtask(report);
-                SubtaskReportWriter.writeReport(report, getRunIteration(), getEvaluationConfig().getRuns() > 1);
+                SubtaskReportWriter.writeReport(report, getRunIteration(), false);
                 if (report.isFailed()) {
                     ExecutionWatcher.getReference().abortedSubtask(report.getTaskName(), report.getTargetName());
                 }
             }  
-        }
-    }
-    
-    private void bloatSubtasks() {
-        if(!bloatingSubtasks.isEmpty()) {
-            LOGGER.info("Starting to bloat RAM footprint");
-            int ctr = 0;
-            for (EvaluationSubtask subtask : bloatingSubtasks) {
-                subtask.adjustScope(serverReport);
-                subtask.bloat();
-                ctr += 1;
-                LOGGER.info("Bloated with {} subtasks", ctr);
-            }
         }
     }
 
@@ -345,13 +328,6 @@ public class EvaluationTask extends TimingDockerTask {
         return DOCKER.inspectContainerCmd(dockerInstance.getId()).exec().getState().getRunning();
     }
     
-    public List<EvaluationSubtask> buildBloatList() throws FailedToHandshakeException, NoSubtaskApplicableException {
-        List<EvaluationSubtask> bloatTasksToAdd = new LinkedList<>();
-        for(int i = 0; i < getEvaluationConfig().getBloat(); i++) {
-            bloatTasksToAdd.addAll(buildTaskList());
-        }
-        return bloatTasksToAdd;
-    }
 
     public List<EvaluationSubtask> buildTaskList() throws FailedToHandshakeException, NoSubtaskApplicableException {
         List<EvaluationSubtask> tasksToAdd = new LinkedList<>();

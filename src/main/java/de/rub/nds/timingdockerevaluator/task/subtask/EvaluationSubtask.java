@@ -263,9 +263,6 @@ public abstract class EvaluationSubtask {
             runningMeasurements.put(identifier, new LinkedList<>());
         }
         runningMeasurements.get(identifier).add(measured);
-        if(evaluationConfig.isPrintRam()) {
-            addMemoryInfo();
-        }
     }
     
     protected static void addMemoryInfo() {

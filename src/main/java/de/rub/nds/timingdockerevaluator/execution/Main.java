@@ -33,11 +33,6 @@ public class Main {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final DockerClient DOCKER = DockerClientManager.getDockerClient();
     private static TimingDockerEvaluatorCommandConfig evaluationConfig;
-    private static List<TimingDockerEvaluatorCommandConfig> additionalConfigs = new LinkedList<>();
-    
-    private static final String PO_PATH= "PaddingOracle";
-    private static final String BB_PATH = "Bleichenbacher";
-    private static final String LUCKY13_PATH = "Lucky13";
 
     public static void main(String args[]) {
         Security.addProvider(new BouncyCastleProvider());
@@ -58,14 +53,6 @@ public class Main {
         } catch (ParameterException ex) {
             LOGGER.error(ex);
             return;
-        }
-        
-        //TODO remove later on
-        for(int i = 0; i < evaluationConfig.getRuns() - 1; i++) {
-            TimingDockerEvaluatorCommandConfig tmpConfig = new TimingDockerEvaluatorCommandConfig();
-            JCommander tmpCommander = new JCommander(tmpConfig);
-            tmpCommander.parse(args);
-            additionalConfigs.add(tmpConfig); 
         }
         
         TimingBenchmark.setEvaluationConfig(evaluationConfig);
@@ -147,21 +134,11 @@ public class Main {
         LOGGER.info("Evaluating remote target {}:{}", evaluationConfig.getSpecificIp(), evaluationConfig.getSpecificPort());
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(evaluationConfig.getThreads());
         if (!evaluationConfig.isDryRun()) {
-            ExecutionWatcher.getReference().setTasks(evaluationConfig.getRuns());
+            ExecutionWatcher.getReference().setTasks(1);
             executor.execute(() -> {
                 EvaluationTask task = new EvaluationTask(evaluationConfig);
                 task.execute();
             });
-            for(int i = 0; i < evaluationConfig.getRuns() - 1; i++) {
-                TimingDockerEvaluatorCommandConfig subConfig = additionalConfigs.get(i);
-                subConfig.setSpecificPort(subConfig.getSpecificPort() + (i + 1));
-                subConfig.setSpecificName(subConfig.getSpecificName() + "-" + (i+1));
-                LOGGER.info("Additional run {} will use port {} for remote target. Results will be stored as {}", i + 1, subConfig.getSpecificPort(), subConfig.getSpecificName());
-                executor.execute(() -> {
-                    EvaluationTask task = new EvaluationTask(subConfig);
-                    task.execute();
-                });
-            }
          }
         return executor;
     }
@@ -172,19 +149,14 @@ public class Main {
         LOGGER.info("Found {} applicable server images", images.size());
         LOGGER.info("Libraries: {}", images.stream().map(image -> image.getLabels().get(TlsImageLabels.IMPLEMENTATION.getLabelName())).distinct().collect(Collectors.joining(",")));
         LOGGER.info("Versions: {}", images.stream().map(image -> image.getLabels().get(TlsImageLabels.VERSION.getLabelName())).distinct().collect(Collectors.joining(",")));
-        LOGGER.info("Will perform {} runs for each image", evaluationConfig.getRuns());
-        ExecutionWatcher.getReference().setTasks(images.size() * evaluationConfig.getRuns());
+        ExecutionWatcher.getReference().setTasks(images.size());
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(evaluationConfig.getThreads());
         if (!evaluationConfig.isDryRun()) {
             for (Image image : images) {
-                for(int i = 0; i < evaluationConfig.getRuns(); i++) {
-                    final int currentValue = i;
-                   executor.execute(() -> {
-                    EvaluationTask task = new EvaluationTask(image, evaluationConfig, currentValue);
+                executor.execute(() -> {
+                    EvaluationTask task = new EvaluationTask(image, evaluationConfig);
                     task.execute();
-                }); 
-                }
-                
+                });              
             }
         }
         return executor;

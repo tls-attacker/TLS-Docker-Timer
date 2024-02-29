@@ -14,14 +14,6 @@ public class TimingDockerEvaluatorCommandConfig {
         this.restartQuickly = restartQuickly;
     }
 
-    public int getBloat() {
-        return bloat;
-    }
-
-    public void setBloat(int bloat) {
-        this.bloat = bloat;
-    }
-
     public boolean isNeverStop() {
         return neverStop;
     }
@@ -84,7 +76,7 @@ public class TimingDockerEvaluatorCommandConfig {
     private String specificIp = null;
     
     @Parameter(names = {"-port", "-p"}, description = "Specific port to connect to instead of managed docker container")
-    private int specificPort = 1337;
+    private int specificPort = 4433;
     
     @Parameter(names = {"-skipr", "-skipR"}, description = "Skip execution of the R script and only measure")
     private boolean skipR = false;
@@ -115,13 +107,7 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"--help", "-h"}, help = true)
     private boolean help = false;
-    
-    @Parameter(names = "-manageOnly", description = "Only manage docker containers")
-    private boolean manageOnly = false;
-    
-    @Parameter(names = "-measureOnly", description = "Only measure using given ip and port")
-    private boolean measureOnly = false;
-    
+
     @Parameter(names = "-dry", description = "Collect images / targets but do not start evaluation process")
     private boolean dryRun = false;
     
@@ -139,9 +125,6 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-rAnalyzedInput"}, description = "Look for R results in the specified directory and print the results")
     private String rAnalyzedInput = null;
-    
-    @Parameter(names = {"-runs"}, description = "Test determined targets multiple times (possibly in parallel)")
-    private int runs = 1;
     
     @Parameter(names = {"-noAutoFlags"}, description = "Do not set additional parameters for libraries where required")
     private boolean noAutoFlags = false;
@@ -172,12 +155,6 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-writeInEachStep"}, description = "Keep evaluating even for frequent connection failures")
     private boolean writeInEachStep = false;
-    
-    @Parameter(names = {"-bloat"}, description = "(benchmarking) Create dummy results to bloat the RAM footprint")
-    private int bloat = 0;
-    
-    @Parameter(names = {"-printRAM"}, description = "Keep evaluating even for frequent connection failures")
-    private boolean printRam = false;
     
     @Parameter(names = {"-echoTest"}, description = "(testing) use static traces to test with hard-coded echo server")
     private boolean echoTest = false;
@@ -333,22 +310,6 @@ public class TimingDockerEvaluatorCommandConfig {
     public void setDryRun(boolean dryRun) {
         this.dryRun = dryRun;
     }
-    
-    public boolean isManageOnly() {
-        return manageOnly;
-    }
-
-    public void setManageOnly(boolean manageOnly) {
-        this.manageOnly = manageOnly;
-    }
-
-    public boolean isMeasureOnly() {
-        return measureOnly;
-    }
-
-    public void setMeasureOnly(boolean measureOnly) {
-        this.measureOnly = measureOnly;
-    }
 
     public String getAdditionalParameter() {
         return additionalParameter;
@@ -368,14 +329,6 @@ public class TimingDockerEvaluatorCommandConfig {
     
     public boolean isAnalyzeOnly() {
         return csvInput != null || rAnalyzedInput != null;
-    }
-
-    public int getRuns() {
-        return runs;
-    }
-
-    public void setRuns(int runs) {
-        this.runs = runs;
     }
 
     public boolean isNoAutoFlags() {
@@ -452,14 +405,6 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setProxyIp(String proxyIp) {
         this.proxyIp = proxyIp;
-    }
-
-    public boolean isPrintRam() {
-        return printRam;
-    }
-
-    public void setPrintRam(boolean printRam) {
-        this.printRam = printRam;
     }
 
     public boolean isEchoTest() {

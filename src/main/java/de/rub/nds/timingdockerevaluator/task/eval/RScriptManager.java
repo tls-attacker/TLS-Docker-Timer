@@ -88,7 +88,7 @@ public class RScriptManager {
     }
 
     private String getBaseResultPath(String targetName, String subtaskName) {
-        return getOutputFolder() + ((parentTask.getEvaluationConfig().getRuns() > 1)? "/Iteration-" + parentTask.getRunIteration() + "/": "") + "/" + targetName + "/" + subtaskName + "/";
+        return getOutputFolder() + "/" + targetName + "/" + subtaskName + "/";
     }
 
     private void writeComparisonFile(String filePath, List<Long> measurementsVector1, List<Long> measurementsVector2) {
