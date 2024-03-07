@@ -1,6 +1,5 @@
 package de.rub.nds.timingdockerevaluator.task.eval;
 
-import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -23,13 +22,11 @@ public class ResultFileWriter {
     private final Map<String, List<Long>> measurements;
     private final List<VectorEvaluationTask> vectorEvaluationTasks = new LinkedList<>();
     private final boolean compareAllCombinations;
-    private EvaluationTask parentTask;
     
-    public ResultFileWriter(String baselineIdentifier, Map<String, List<Long>> measurements, boolean compareAllCombinations, EvaluationTask parentTask) {
+    public ResultFileWriter(String baselineIdentifier, Map<String, List<Long>> measurements, boolean compareAllCombinations) {
         this.baselineIdentifier = baselineIdentifier;
         this.measurements = measurements;
         this.compareAllCombinations = compareAllCombinations;
-        this.parentTask = parentTask;
     }
     
     public void prepareFiles(String subtaskName, String targetName) {

@@ -179,7 +179,7 @@ public abstract class EvaluationSubtask {
                 }
             }
             LOGGER.info("Subtask {} completed {} measurements for {}", getSubtaskName(), measurementsDone, getTargetName());
-            ResultFileWriter scriptManager = new ResultFileWriter(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations(), parentTask);
+            ResultFileWriter scriptManager = new ResultFileWriter(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations());
             if(evaluationConfig.isWriteInEachStep()) {
                 LOGGER.info("Writing sub results for subtask {}", getSubtaskName());
                 scriptManager.prepareExtendingFiles(getSubtaskName(), getTargetName());
@@ -257,32 +257,6 @@ public abstract class EvaluationSubtask {
             runningMeasurements.put(identifier, new LinkedList<>());
         }
         runningMeasurements.get(identifier).add(measured);
-    }
-    
-    protected static void addMemoryInfo() {
-        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
-        MemoryUsage heapMemoryUsage = memoryMXBean.getHeapMemoryUsage();
-        String memoryFootprint = String.format("Heap Info -- Initial: %s   Used: %s   Committed: %s   Max: %s", formatSize(heapMemoryUsage.getInit()), formatSize(heapMemoryUsage.getUsed()), formatSize(heapMemoryUsage.getCommitted()), formatSize(heapMemoryUsage.getMax()));
-        if(!memoryFootprint.equals(lastMemoryFootprint)) {
-            lastMemoryFootprint = memoryFootprint;
-            LOGGER.info(memoryFootprint);
-        }
-    }
-    
-    private static String formatSize(long bytes) {
-        long kilo = 1024;
-        long mega = kilo * kilo;
-        long giga = mega * kilo;
-
-        if (bytes >= giga) {
-            return String.format("%.2f GB", (double) bytes / giga);
-        } else if (bytes >= mega) {
-            return String.format("%.2f MB", (double) bytes / mega);
-        } else if (bytes >= kilo) {
-            return String.format("%.2f KB", (double) bytes / kilo);
-        } else {
-            return bytes + " B";
-        }
     }
     
     protected void resetMeasurements() {
