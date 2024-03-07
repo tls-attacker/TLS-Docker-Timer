@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <artifactId>TimingDockerEvaluator</artifactId>
-    <groupId>de.rub.nds.timingdockerevaluator</groupId>
+    <artifactId>tls-docker-timer</artifactId>
+    <groupId>de.rub.nds.tls.dockertimer</groupId>
     <version>1.0</version>
     <packaging>jar</packaging>
+    <name>TLS-Docker-Timer</name>
     <dependencies>
         <dependency>
             <groupId>de.rub.nds.tlsattacker</groupId>
@@ -74,7 +75,7 @@
         </dependency>
     </dependencies>
     <build>
-        <finalName>TLS-Timing-Docker-Evaluator</finalName>              
+        <finalName>TLS-Docker-Timer</finalName>              
         <plugins>
             <plugin> 
                 <artifactId>maven-dependency-plugin</artifactId> 
