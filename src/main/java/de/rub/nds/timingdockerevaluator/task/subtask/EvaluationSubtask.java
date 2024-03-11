@@ -201,7 +201,7 @@ public abstract class EvaluationSubtask {
             long timeSpent = System.currentTimeMillis() - report.getStartTimestamp();
             double timePerMeasurement = (double)(timeSpent / measurementsDone);
             double remainingTime = timePerMeasurement * (evaluationConfig.getTotalMeasurements() * subtaskIdentifierCount - measurementsDone);
-            LOGGER.info("Progess: {}/{} for {} in subtask {} (Expected to finish in {})", measurementsDone, evaluationConfig.getTotalMeasurements() * subtaskIdentifierCount, getTargetName(), getSubtaskName(), getReadableTime(remainingTime));
+            LOGGER.info("Progress: {}/{} for {} in subtask {} (Expected to finish in {})", measurementsDone, evaluationConfig.getTotalMeasurements() * subtaskIdentifierCount, getTargetName(), getSubtaskName(), getReadableTime(remainingTime));
         }
     }
 
