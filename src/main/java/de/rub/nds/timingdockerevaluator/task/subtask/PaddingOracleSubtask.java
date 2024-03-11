@@ -37,7 +37,7 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
 
     @Override
     public boolean isApplicable() {
-        return cipherSuite != null && version != null;
+        return getCipherSuite() != null && getVersion() != null;
     }
 
     @Override
@@ -68,23 +68,21 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
         } else {
             // try to select any *_AES_128_CBC_SHA cipher suite
             cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES_128_CBC") && cipher.name().endsWith("_SHA")).findFirst().orElse(null);
-            if(cipherSuite == null) {
+            if(getCipherSuite() == null) {
                 // try to select any *_AES_*_CBC_SHA cipher suite
                 cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES") && cipher.name().contains("CBC") && cipher.name().endsWith("_SHA")).findFirst().orElse(null);
             }
-            if(cipherSuite == null) {
+            if(getCipherSuite() == null) {
                 // try to select any *_AES_*_CBC_SHA256 cipher suite
                 cipherSuite = serverReport.getCipherSuites().stream().filter(cipher -> cipher.name().contains("AES") && cipher.name().contains("CBC") && cipher.name().endsWith("_SHA256")).findFirst().orElse(null);
             }
-            usingAesSha = cipherSuite.name().endsWith("_SHA");
+            usingAesSha = getCipherSuite().name().endsWith("_SHA");
         }
 
-        if(cipherSuite != null ) {
+        if(getCipherSuite() != null ) {
             if(!(cipherSuite.name().contains("SHA") && cipherSuite.name().contains("AES")) && !(cipherSuite.name().contains("SHA256") && cipherSuite.name().contains("AES"))) {
                 LOGGER.error("Code flow only accepts AES CBC SHA or any AES CBC SHA256");
                 cipherSuite = null;
-            } else {
-                LOGGER.info("Using cipher suite {} for {}", cipherSuite.name(), getSubtaskName());
             }
         }
     }
@@ -102,7 +100,7 @@ public class PaddingOracleSubtask extends EvaluationSubtask {
     @Override
     protected Long measure(String typeIdentifier) throws WorkflowTraceFailedEarlyException, UndetectableOracleException {
        
-        Config config = getBaseConfig(version, cipherSuite);
+        Config config = getBaseConfig(getVersion(), getCipherSuite());
         
         WorkflowTrace workflowTrace;
         if(usingAesSha) {

@@ -4,7 +4,6 @@ import de.rub.nds.modifiablevariable.util.Modifiable;
 import de.rub.nds.timingdockerevaluator.task.eval.ResultFileWriter;
 import de.rub.nds.timingdockerevaluator.config.TimingDockerEvaluatorCommandConfig;
 import de.rub.nds.timingdockerevaluator.task.EvaluationTask;
-import de.rub.nds.timingdockerevaluator.task.eval.VectorEvaluationTask;
 import de.rub.nds.timingdockerevaluator.task.exception.UndetectableOracleException;
 import de.rub.nds.timingdockerevaluator.task.exception.WorkflowTraceFailedEarlyException;
 import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
@@ -43,9 +42,6 @@ import de.rub.nds.tlsscanner.serverscanner.report.ServerReport;
 import de.rub.nds.tlsscanner.serverscanner.selector.ConfigFilter;
 import de.rub.nds.tlsscanner.serverscanner.selector.ConfigFilterProfile;
 import de.rub.nds.tlsscanner.serverscanner.selector.DefaultConfigProfile;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
-import java.lang.management.MemoryUsage;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -60,8 +56,6 @@ import org.apache.logging.log4j.Logger;
 
 public abstract class EvaluationSubtask {
     
-    private static String lastMemoryFootprint = "";
-
     private final static Random notReallyRandom = new Random(System.currentTimeMillis());
     protected static final Logger LOGGER = LogManager.getLogger();
     private static final int MAX_FAILURES_IN_A_ROW = 30;
@@ -121,6 +115,7 @@ public abstract class EvaluationSubtask {
         LOGGER.info("Starting evaluation of {} - Target: {}", getSubtaskName(), getTargetName());
         List<String> subtaskIdentifiers = prepareSubtask();
         LOGGER.info("Subtask {} for {} has {} identifiers", getSubtaskName(), getTargetName(), subtaskIdentifiers.size());
+        LOGGER.info("Subtask {} will use cipher suite {} in version {} for {}", getSubtaskName(), getCipherSuite(), getVersion(), getTargetName());
         String baselineIdentifier = getBaselineIdentifier();
         boolean keepMeasuring = true;
         do {
@@ -213,8 +208,8 @@ public abstract class EvaluationSubtask {
     private List<String> prepareSubtask() {
         List<String> subtaskIdentifiers = getSubtaskIdentifiers();
         report.setIdentifiers(subtaskIdentifiers);
-        report.setCipherSuite(cipherSuite);
-        report.setProtocolVersion(version);
+        report.setCipherSuite(getCipherSuite());
+        report.setProtocolVersion(getVersion());
         return subtaskIdentifiers;
     }
     
@@ -475,5 +470,13 @@ public abstract class EvaluationSubtask {
             return CipherSuite.valueOf(evaluationConfig.getEnforcedCipher());
         }
         return null;
+    }
+
+    public CipherSuite getCipherSuite() {
+        return cipherSuite;
+    }
+    
+    public ProtocolVersion getVersion() {
+        return version;
     }
 }

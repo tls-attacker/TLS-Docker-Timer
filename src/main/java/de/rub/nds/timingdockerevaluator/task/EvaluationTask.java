@@ -226,7 +226,6 @@ public class EvaluationTask extends TimingDockerTask {
 
     public void executeSubtasks() {
         for (EvaluationSubtask subtask : subtasks) {
-            subtask.adjustScope(serverReport);
             if(getEvaluationConfig().isOnlyTestVectors()) {
                 subtask.testVectors();
             } else {

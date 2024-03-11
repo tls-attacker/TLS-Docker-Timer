@@ -58,14 +58,14 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
         super.adjustScope(serverReport);
         selectCipherSuite(serverReport);
         version = determineVersion(serverReport);
-        if (cipherSuite != null && version != null) {
+        if (getCipherSuite() != null && getVersion() != null) {
             if(evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_CONTAINTER) {
                parentTask.restartContainer(); 
             } else if(evaluationConfig.getTargetManagement() == DockerTargetManagement.RESTART_SERVER) {
                 parentTask.restartServer();
             }
             
-            publicKey = fetchServerPublicKey(getBaseConfig(version, cipherSuite));
+            publicKey = fetchServerPublicKey(getBaseConfig(getVersion(), getCipherSuite()));
             if (publicKey == null) {
                 LOGGER.error("Failed to fetch any PublicKey for {}", getTargetName());
                 return;
@@ -80,7 +80,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
             consideredVectorNames.add("Invalid TLS version in PMS");
             consideredVectorNames.add("No 0x00 in message");
             consideredVectorNames.add("0x00 on the next to last position (|PMS| = 1)");
-            vectors = ((List<Pkcs1Vector>) Pkcs1VectorGenerator.generatePkcs1Vectors((RSAPublicKey) publicKey, BleichenbacherScanType.FAST, version)).stream().filter(vector -> consideredVectorNames.contains(vector.getName())).collect(Collectors.toList());
+            vectors = ((List<Pkcs1Vector>) Pkcs1VectorGenerator.generatePkcs1Vectors((RSAPublicKey) publicKey, BleichenbacherScanType.FAST, getVersion())).stream().filter(vector -> consideredVectorNames.contains(vector.getName())).collect(Collectors.toList());
         }
     }
 
@@ -114,7 +114,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
             throw new IllegalArgumentException("Was unable to resolve identifier " + typeIdentifier);
         }
         
-        Config config = getBaseConfig(version, cipherSuite);
+        Config config = getBaseConfig(getVersion(), getCipherSuite());
         final byte[] newRandom = new byte[32];
         random.nextBytes(newRandom);
         config.setDefaultClientRandom(newRandom);
@@ -140,7 +140,7 @@ public class BleichenbacherSubtask extends EvaluationSubtask {
 
     @Override
     public boolean isApplicable() {
-        return cipherSuite != null && version != null && publicKey != null;
+        return getCipherSuite() != null && getVersion() != null && publicKey != null;
     }
 
     @Override

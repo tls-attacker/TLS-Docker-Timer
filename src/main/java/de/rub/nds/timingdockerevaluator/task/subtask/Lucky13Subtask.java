@@ -28,7 +28,7 @@ public class Lucky13Subtask extends EvaluationSubtask {
     
     @Override
     public boolean isApplicable() {
-        return cipherSuite != null && version != null;
+        return getCipherSuite() != null && getVersion() != null;
     }
 
     @Override
@@ -59,13 +59,13 @@ public class Lucky13Subtask extends EvaluationSubtask {
         lucky13commandConfig.getDelegate(ProxyDelegate.class).setProxyControl(evaluationConfig.getProxyIp() + ":" + evaluationConfig.getProxyControlPort());
         lucky13commandConfig.getDelegate(ProxyDelegate.class).setProxyData(evaluationConfig.getProxyIp() + ":" + evaluationConfig.getProxyDataPort());
         lucky13commandConfig.getDelegate(ClientDelegate.class).setHost(getTargetIp() + ":" + getTargetPort());
-        Lucky13Attacker attacker = new Lucky13Attacker(lucky13commandConfig, getBaseConfig(version, cipherSuite));
+        Lucky13Attacker attacker = new Lucky13Attacker(lucky13commandConfig, getBaseConfig(getVersion(), getCipherSuite()));
         
         int padLen = 0;
         if(typeIdentifier.equals("LONG_PADDING")) {
             padLen = 255;
         }
-        Record record = attacker.createRecordWithPadding(padLen, cipherSuite);
+        Record record = attacker.createRecordWithPadding(padLen, getCipherSuite());
         State state = attacker.buildAttackState(record);
         handleClientAuthentication(state.getWorkflowTrace(), state.getConfig());
         runExecutor(state);
