@@ -148,7 +148,7 @@ public class Main {
         if (!matchesLocalOverNexusPriority(image, presentImages, implementation, version)) {
             return false;
         } else {
-            if(implementation.name() == null || version == null || role == null) {
+            if(implementation == null || implementation.name() == null || version == null || role == null) {
                 LOGGER.warn("TLS-Docker-Library found a docker image without proper tags ({})", image.getRepoTags());
                 return false;
             } else {
