@@ -174,7 +174,7 @@ public abstract class EvaluationSubtask {
                 }
             }
             LOGGER.info("Subtask {} completed {} measurements for {}", getSubtaskName(), measurementsDone, getTargetName());
-            ResultFileWriter scriptManager = new ResultFileWriter(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations());
+            ResultFileWriter scriptManager = new ResultFileWriter(baselineIdentifier, runningMeasurements, isCompareAllVectorCombinations(), evaluationConfig.getOutputDirectory());
             if(evaluationConfig.isWriteInEachStep()) {
                 LOGGER.info("Writing sub results for subtask {}", getSubtaskName());
                 scriptManager.prepareExtendingFiles(getSubtaskName(), getTargetName());

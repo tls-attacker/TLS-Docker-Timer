@@ -23,10 +23,11 @@ public class ResultFileWriter {
     private final List<VectorEvaluationTask> vectorEvaluationTasks = new LinkedList<>();
     private final boolean compareAllCombinations;
     
-    public ResultFileWriter(String baselineIdentifier, Map<String, List<Long>> measurements, boolean compareAllCombinations) {
+    public ResultFileWriter(String baselineIdentifier, Map<String, List<Long>> measurements, boolean compareAllCombinations, String outputFolder) {
         this.baselineIdentifier = baselineIdentifier;
         this.measurements = measurements;
         this.compareAllCombinations = compareAllCombinations;
+        this.outputFolder = outputFolder;
     }
     
     public void prepareFiles(String subtaskName, String targetName) {

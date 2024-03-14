@@ -6,8 +6,8 @@ import de.rub.nds.timingdockerevaluator.util.DockerTargetManagement;
 
 public class TimingDockerEvaluatorCommandConfig {
 
-    
-   
+
+
     @Parameter(names = "-i", description = "Number of measurements per step")
     private int measurementsPerStep = 500000;
     
@@ -64,6 +64,9 @@ public class TimingDockerEvaluatorCommandConfig {
     
     @Parameter(names = {"-additionalParameter","-a"}, description = "Additional parameter for the server inside the docker container")
     private String additionalParameter = null;
+    
+    @Parameter(names = {"-outputDirectory","-o"}, description = "Set the directory for the results (defaults to output-[date]-[time])")
+    private String outputDirectory = null;
     
     @Parameter(names = {"-keepContainer"}, description = "Do not stop and remove the container")
     private boolean keepContainer = false;
@@ -345,5 +348,13 @@ public class TimingDockerEvaluatorCommandConfig {
 
     public void setKeepContainer(boolean keepContainer) {
         this.keepContainer = keepContainer;
+    }
+    
+    public String getOutputDirectory() {
+        return outputDirectory;
+    }
+
+    public void setOutputDirectory(String outputDirectory) {
+        this.outputDirectory = outputDirectory;
     }
 }

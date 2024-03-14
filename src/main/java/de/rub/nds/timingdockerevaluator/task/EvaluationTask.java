@@ -120,7 +120,7 @@ public class EvaluationTask extends TimingDockerTask {
                 stopContainter(dockerInstance);
             }
         }
-        LOGGER.info("Finished evaluation for {} in {} minutes", targetName, (System.currentTimeMillis() - startTimestamp) / (60 * 1000));
+        LOGGER.info("Finished measurements for {} in {} minutes", targetName, (System.currentTimeMillis() - startTimestamp) / (60 * 1000));
         ExecutionWatcher.getReference().finishedTask();
     }
 
